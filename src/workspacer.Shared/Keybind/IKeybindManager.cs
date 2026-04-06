@@ -37,6 +37,9 @@
         /// <param name="handler">callback that is called when the mouse event is detected</param>
         /// <param name="name">name of the mouse event</param>
         void Subscribe(MouseEvent evt, MouseHandler handler, string name);
+        
+        void Subscribe(KeyModifiers mod, MouseEvent evt, MouseHandler handler);
+        void Subscribe(KeyModifiers mod, MouseEvent evt, MouseHandler handler, string name);
 
         /// <summary>
         /// unsubscribe to a specified keybinding
@@ -44,6 +47,8 @@
         /// <param name="mod">desired keyboard modifier to be listened for</param>
         /// <param name="key">desired keyboard key to be listened for</param>
         void Unsubscribe(KeyModifiers mod, Keys key);
+
+        void Unsubscribe(KeyModifiers mod, MouseEvent evt);
 
         /// <summary>
         /// unsubscribe from the specified mouse event

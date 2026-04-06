@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.VisualBasic.Devices;
 
 namespace workspacer
 {
@@ -30,6 +31,7 @@ namespace workspacer
         private IConfigContext _context;
         private IDictionary<Sub, NamedBind<KeybindHandler>> _kbdSubs;
         private IDictionary<MouseEvent, NamedBind<MouseHandler>> _mouseSubs;
+        private IDictionary<MouseSub, NamedBind<MouseHandler>> _mouseComboSubs;
 
         private KeyValueTable _keybindTable;
         private TextBlockMessage _keybindWarning;
@@ -40,6 +42,7 @@ namespace workspacer
             _kbdHook = KbdHook;
             _mouseHook = MouseHook;
             _kbdSubs = new Dictionary<Sub, NamedBind<KeybindHandler>>();
+            _mouseComboSubs = new Dictionary<MouseSub, NamedBind<MouseHandler>>();
             _mouseSubs = new Dictionary<MouseEvent, NamedBind<MouseHandler>>();
 
             SubscribeDefaults();
@@ -89,6 +92,25 @@ You can either change your custom hotkey or reassign the default hotkey";
             _mouseSubs[evt] = new NamedBind<MouseHandler>(handler, name);
         }
 
+        public void Subscribe(KeyModifiers mod, MouseEvent evt, MouseHandler handler)
+        {
+            Subscribe(mod, evt, handler, null);
+        }
+
+        public void Subscribe(KeyModifiers mod, MouseEvent evt, MouseHandler handler, string name)
+        {
+            var sub = new MouseSub(mod, evt);
+            if (_mouseComboSubs.ContainsKey(sub))
+            {
+                Logger.Error($" The mouse-key combination `{mod}-{evt} is already bound to action `{name}`");
+                string warning = $"""
+                                   The mouse-key combination `{mod}-{evt}` is already bound to action: `{name}`. To fix this go into your config file and compare assignments of hotkeys
+                                  You can either change your custom hotkey or reassign the default hotkey
+                                  """;
+                ShowKeybindWarning(warning);
+            }
+        }
+
         public void Subscribe(MouseEvent evt, MouseHandler handler)
         {
             Subscribe(evt, handler, null);
@@ -103,6 +125,15 @@ You can either change your custom hotkey or reassign the default hotkey";
             }
         }
 
+        public void Unsubscribe(KeyModifiers mod, MouseEvent evt)
+        {
+            var sub = new MouseSub(mod, evt);
+            if (_mouseComboSubs.ContainsKey(sub))
+            {
+                _mouseComboSubs.Remove(sub);
+            }
+        }
+
         public void Unsubscribe(MouseEvent evt)
         {
             if (_mouseSubs.ContainsKey(evt))
@@ -113,9 +144,13 @@ You can either change your custom hotkey or reassign the default hotkey";
         {
             _kbdSubs.Clear();
             _mouseSubs.Clear();
+            _mouseComboSubs.Clear();
         }
 
         public IEnumerable<Tuple<KeyModifiers, Keys, string>> Keybinds => _kbdSubs.Select(kv => new Tuple<KeyModifiers, Keys, string>(kv.Key.Modifiers, kv.Key.Keys, kv.Value.Name));
+
+        public IEnumerable<Tuple<KeyModifiers, MouseEvent, string>> ComboMouseBinds => _mouseComboSubs.Select(kv =>
+            new Tuple<KeyModifiers, MouseEvent, string>(kv.Key.Modifiers, kv.Key.Event, kv.Value.Name));
         public IEnumerable<Tuple<MouseEvent, string>> Mousebinds => _mouseSubs.Select(kv => new Tuple<MouseEvent, string>(kv.Key, kv.Value.Name));
 
         public bool KeyIsPressed(Keys key)
@@ -133,40 +168,7 @@ You can either change your custom hotkey or reassign the default hotkey";
                     key != Keys.LControlKey && key != Keys.RControlKey &&
                     key != Keys.LWin && key != Keys.RWin)
                 {
-                    KeyModifiers modifiersPressed = 0;
-                    // there is no other way to distinguish between left and right modifier keys
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.LShiftKey)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.LShift;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.RShiftKey)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.RShift;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.LMenu)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.LAlt;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.RMenu)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.RAlt;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.LControlKey)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.LControl;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.RControlKey)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.RControl;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.LWin)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.LWin;
-                    }
-                    if ((Win32.GetKeyState(KeysToKeys(Keys.RWin)) & 0x8000) == 0x8000)
-                    {
-                        modifiersPressed |= KeyModifiers.RWin;
-                    }
+                    KeyModifiers modifiersPressed = GetModifiersPressed();
 
                     if (DoKeyboardEvent(key, modifiersPressed))
                     {
@@ -179,14 +181,56 @@ You can either change your custom hotkey or reassign the default hotkey";
 
         private IntPtr MouseHook(int nCode, UIntPtr wParam, IntPtr lParam)
         {
-            if (nCode == 0 && (uint)wParam == Win32.WM_LBUTTONDOWN) { if (DoMouseEvent(MouseEvent.LButtonDown)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_LBUTTONUP) { if (DoMouseEvent(MouseEvent.LButtonUp)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEMOVE) { if (DoMouseEvent(MouseEvent.MouseMove)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEWHEEL) { if (DoMouseEvent(MouseEvent.MouseWheel)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEHWHEEL) { if (DoMouseEvent(MouseEvent.MouseHWheel)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_RBUTTONDOWN) { if (DoMouseEvent(MouseEvent.RButtonDown)) return new IntPtr(1); }
-            else if (nCode == 0 && (uint)wParam == Win32.WM_RBUTTONUP) { if (DoMouseEvent(MouseEvent.RButtonUp)) return new IntPtr(1); }
+            KeyModifiers modifiersPressed = GetModifiersPressed();
+            
+            if (nCode == 0 && (uint)wParam == Win32.WM_LBUTTONDOWN) { if (DoMouseEvent(MouseEvent.LButtonDown, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_LBUTTONUP) { if (DoMouseEvent(MouseEvent.LButtonUp, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEMOVE) { if (DoMouseEvent(MouseEvent.MouseMove, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEWHEEL) { if (DoMouseEvent(MouseEvent.MouseWheel, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_MOUSEHWHEEL) { if (DoMouseEvent(MouseEvent.MouseHWheel, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_RBUTTONDOWN) { if (DoMouseEvent(MouseEvent.RButtonDown, modifiersPressed)) return new IntPtr(1); }
+            else if (nCode == 0 && (uint)wParam == Win32.WM_RBUTTONUP) { if (DoMouseEvent(MouseEvent.RButtonUp, modifiersPressed)) return new IntPtr(1); }
             return Win32.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+        }
+
+        private KeyModifiers GetModifiersPressed()
+        {
+            KeyModifiers modifiersPressed = 0;
+            // there is no other way to distinguish between left and right modifier keys
+            if ((Win32.GetKeyState(KeysToKeys(Keys.LShiftKey)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.LShift;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.RShiftKey)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.RShift;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.LMenu)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.LAlt;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.RMenu)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.RAlt;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.LControlKey)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.LControl;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.RControlKey)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.RControl;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.LWin)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.LWin;
+            }
+            if ((Win32.GetKeyState(KeysToKeys(Keys.RWin)) & 0x8000) == 0x8000)
+            {
+                modifiersPressed |= KeyModifiers.RWin;
+            }
+
+            return modifiersPressed;
         }
 
         private bool DoKeyboardEvent(Keys key, KeyModifiers modifiersPressed)
@@ -203,12 +247,26 @@ You can either change your custom hotkey or reassign the default hotkey";
             return false;
         }
 
-        private bool DoMouseEvent(MouseEvent evt)
+        private bool DoMouseEvent(MouseEvent evt, KeyModifiers modifiersPressed)
         {
-            if (_mouseSubs.ContainsKey(evt))
+            if (modifiersPressed == KeyModifiers.None)
             {
-                _mouseSubs[evt]?.Binding.Invoke();
+                if (_mouseSubs.ContainsKey(evt))
+                {
+                    _mouseSubs[evt]?.Binding.Invoke();
+                }
             }
+            else
+            {
+                var sub = new MouseSub(modifiersPressed, evt);
+                if (_mouseComboSubs.ContainsKey(sub))
+                {
+                    _mouseComboSubs[sub]?.Binding.Invoke();
+                    return true;
+                }
+            }
+            
+            
             return false;
         }
 
