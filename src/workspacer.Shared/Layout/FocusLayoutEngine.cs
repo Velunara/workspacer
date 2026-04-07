@@ -135,5 +135,9 @@ namespace workspacer
             return _numInPrimary + _numInPrimaryOffset;
         }
 
+        public ILayoutEngine GetLayoutEngine()
+        {
+            return this;
+        }
     }
 }

@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace workspacer
 {
@@ -26,7 +28,9 @@ namespace workspacer
                 lock (_windows)
                 {
                     return _windows.Where(w =>
-                        w.CanLayout && !(_context.CanMinimizeWindows && w.IsMinimized)
+                            w.CanLayout &&
+                            !(_context.CanMinimizeWindows && w.IsMinimized) &&
+                            !_context.Windows.IsFloating(w)
                     ).ToList();
                 }
             }
@@ -108,10 +112,11 @@ namespace workspacer
 
         public void UpdateWindow(IWindow window, WindowUpdateType type, bool layout = true)
         {
+            Logger.Info("Update for window " + window + " update type: " + type + " loc: " + window.Location + " tile: " + window.TilePosition);
             if (type == WindowUpdateType.Foreground)
                 _lastFocused = window;
 
-            if (layout)
+            if (layout && type is not WindowUpdateType.Scale and not WindowUpdateType.Foreground)
                 DoLayout();
         }
 
@@ -389,7 +394,10 @@ namespace workspacer
                 var monitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(this);
                 if (monitor != null)
                 {
-                    windows.ForEach(w => w.ShowInCurrentState());
+                    foreach (var window in Windows)
+                    {
+                        window.ShowInCurrentState();
+                    }
 
                     var locations = GetLayoutEngine().CalcLayout(windows, monitor.Width, monitor.Height)
                         .ToArray();
@@ -404,22 +412,36 @@ namespace workspacer
                             var adjustedLoc = new WindowLocation(loc.X + monitor.X, loc.Y + monitor.Y,
                                 loc.Width, loc.Height, loc.State);
 
-                            if (!window.IsMouseMoving && !window.IsFullscreen)
+                            if (!window.IsMouseMoving && !window.IsFullscreen && !_context.Windows.IsFloating(window))
                             {
+                                window.CodeMoved = true;
                                 handle.DeferWindowPos(window, adjustedLoc);
+                                // Wait a little
+                                var thread = new Thread(() =>
+                                {
+                                    Thread.Sleep(100);
+                                    window.TilePosition = window.Location;
+                                });
+                                thread.Start();
                             }
                         }
                     }
                 }
                 else
                 {
-                    windows.ForEach(w => w.Hide());
+                    foreach (var window in Windows)
+                    {
+                        window.Hide();
+                    }
                 }
                 OnLayoutCompleted?.Invoke(this);
             }
             else
             {
-                windows.ForEach(w => w.ShowInCurrentState());
+                foreach (var window in Windows)
+                {
+                    window.ShowInCurrentState();
+                }
             }
         }
 

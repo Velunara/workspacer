@@ -51,5 +51,7 @@ namespace workspacer
         /// the behavior of this method is implementation defined
         /// </summary>
         void DecrementNumInPrimary();
+        
+        ILayoutEngine GetLayoutEngine();
     }
 }

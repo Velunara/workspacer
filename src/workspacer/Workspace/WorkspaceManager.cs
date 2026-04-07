@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.VisualBasic.Logging;
 
 namespace workspacer
 {
@@ -395,6 +396,18 @@ namespace workspacer
 
         public void UpdateWindow(IWindow window, WindowUpdateType type)
         {
+            if (type is WindowUpdateType.Move && (window.Location.Width != window.TilePosition.Width ||
+                                                  window.Location.Height != window.TilePosition.Height))
+            {
+                type = WindowUpdateType.Scale;
+            }
+            
+            if (window.CodeMoved && type is WindowUpdateType.Move or WindowUpdateType.MoveStart or WindowUpdateType.MoveEnd or WindowUpdateType.Scale or WindowUpdateType.ScaleEnd)
+            {
+                window.CodeMoved = false;
+                return;
+            }
+            
             if (_windowsToWorkspaces.ContainsKey(window))
             {
                 Logger.Trace("UpdateWindow({0})", window);

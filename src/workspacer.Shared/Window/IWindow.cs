@@ -25,7 +25,9 @@ namespace workspacer
         string Title { get; }
         string Class { get; }
         IWindowLocation Location { get; }
+        IWindowLocation TilePosition { get; set; }
         Rectangle Offset { get; }
+        bool CodeMoved { get; set; }
 
         int ProcessId { get; }
         string ProcessFileName { get; }

@@ -12,5 +12,7 @@
         event WindowFocusDelegate WindowFocused;
 
         void ToggleFocusedWindowTiling(); // mod-t
+        int CurrentMonitorID();
+        bool IsFloating(IWindow window);
     }
 }

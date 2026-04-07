@@ -10,5 +10,7 @@
         MoveStart,
         MoveEnd,
         Move,
+        ScaleEnd,
+        Scale
     }
 }

@@ -15,6 +15,7 @@ namespace workspacer
 
         private IntPtr _handle;
         private bool _didManualHide;
+        public Win32.RECT LastRect { get; set; }
 
         public event IWindowDelegate WindowClosed;
         public event IWindowDelegate WindowUpdated;
@@ -100,6 +101,24 @@ namespace workspacer
             }
         }
 
+        private IWindowLocation _tilePosition;
+        public IWindowLocation TilePosition
+        {
+            get
+            {
+                if (_tilePosition == null)
+                {
+                    _tilePosition = Location;
+                }
+
+                return _tilePosition;
+            }
+            set
+            {
+                _tilePosition = value;
+            }
+        }
+
         public Rectangle Offset
         {
             get
@@ -132,6 +151,8 @@ namespace workspacer
                 return new Rectangle(X, Y, Width, Height);
             }
         }
+
+        public bool CodeMoved { get; set; }
 
         public int ProcessId => _processId;
         public string ProcessFileName => _processFileName;

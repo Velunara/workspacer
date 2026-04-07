@@ -66,5 +66,65 @@ namespace workspacer
         {
             FocusStealer.Steal(hWnd);
         }
+        
+        public static IntPtr GetMonitorFromWindow(IntPtr hwnd)
+        {
+	        return Win32.MonitorFromWindow(hwnd, Win32.MONITOR_DEFAULTTONEAREST);
+        }
+
+        public static string GetMonitorId(IntPtr hwnd)
+        {
+	        var hMonitor = GetMonitorFromWindow(hwnd);
+
+	        var mi = new Win32.MONITORINFOEX();
+	        mi.cbSize = Marshal.SizeOf(mi);
+
+	        if (Win32.GetMonitorInfo(hMonitor, ref mi))
+	        {
+		        return mi.szDevice; // \\.\DISPLAY1
+	        }
+
+	        return null;
+        }
+        
+        public static IntPtr GetMonitorFromCursor()
+        {
+	        Win32.POINT pt;
+	        if (!Win32.GetCursorPos(out pt))
+		        return IntPtr.Zero;
+
+	        return Win32.MonitorFromPoint(pt, Win32.MONITOR_DEFAULTTONEAREST);
+        }
+        public static string GetMonitorIdFromCursor()
+        {
+	        var hMonitor = GetMonitorFromCursor();
+	        if (hMonitor == IntPtr.Zero)
+		        return null;
+
+	        var mi = new Win32.MONITORINFOEX();
+	        mi.cbSize = Marshal.SizeOf(mi);
+
+	        if (Win32.GetMonitorInfo(hMonitor, ref mi))
+	        {
+		        return mi.szDevice; // \\.\DISPLAY1
+	        }
+
+	        return null;
+        } 
+        public static int GetMonitorIndexFromCursor()
+        {
+	        var id = GetMonitorIdFromCursor(); // your existing method
+
+	        if (string.IsNullOrEmpty(id))
+		        return -1;
+
+	        // Extract number from \\.\DISPLAYX
+	        var digits = System.Text.RegularExpressions.Regex.Match(id, @"\d+");
+
+	        if (digits.Success && int.TryParse(digits.Value, out int result))
+		        return result;
+
+	        return -1;
+        }
     }
 }

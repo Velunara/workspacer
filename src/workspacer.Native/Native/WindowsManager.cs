@@ -23,7 +23,7 @@ namespace workspacer
         private readonly object _mouseMoveLock = new object();
         private Win32.HookProc _mouseHook;
 
-        private Dictionary<WindowsWindow, bool> _floating;
+        private Dictionary<IWindow, bool> _floating;
 
         /// <summary>
         /// Notifies when a new window handle was created by the manager
@@ -59,7 +59,7 @@ namespace workspacer
         public WindowsManager()
         {
             _windows = new Dictionary<IntPtr, WindowsWindow>();
-            _floating = new Dictionary<WindowsWindow, bool>();
+            _floating = new Dictionary<IWindow, bool>();
             _hookDelegate = new WinEventDelegate(WindowHook);
         }
 
@@ -90,6 +90,25 @@ namespace workspacer
             });
             thread.Name = "WindowsManager";
             thread.Start();
+        }
+
+        public int CurrentMonitorID()
+        {
+            int id = Win32Helper.GetMonitorIndexFromCursor();
+            Logger.Info("This id: " + id);
+            return id;
+        }
+
+        public bool IsFloating(IWindow window)
+        {
+            if (_floating.ContainsKey(window))
+            {
+                return _floating[window];
+            }
+            else
+            {
+                return false;
+            }
         }
 
         public IWindowsDeferPosHandle DeferWindowsPos(int count)
@@ -146,10 +165,11 @@ namespace workspacer
                 else
                 {
                     _floating[window] = true;
-                    HandleWindowRemove(window);
+                    // HandleWindowRemove(window);
                     window.BringToTop();
                 }
                 window.Focus();
+                WindowUpdated?.Invoke(window, WindowUpdateType.Move);
             }
         }
 

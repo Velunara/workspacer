@@ -49,8 +49,7 @@ namespace workspacer
             _pipeServer = new PipeServer();
 
             _defaultLayouts = () => new ILayoutEngine[] {
-                new TallLayoutEngine(),
-                new FullLayoutEngine()
+                new MasterLayoutEngine(),
             };
             _layoutProxies = new List<Func<ILayoutEngine, ILayoutEngine>>();
 

@@ -106,5 +106,47 @@ namespace workspacer
 
         public const uint GENERIC_WRITE = 0x40000000;
         public const uint GENERIC_READ = 0x80000000;
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFOEX lpmi);
+
+        public const uint MONITOR_DEFAULTTONULL = 0x00000000;
+        public const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
+        public const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+	        public int left;
+	        public int top;
+	        public int right;
+	        public int bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct MONITORINFOEX
+        {
+	        public int cbSize;
+	        public RECT rcMonitor;
+	        public RECT rcWork;
+	        public uint dwFlags;
+
+	        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+	        public string szDevice;
+        }
+        [DllImport("user32.dll")]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+	        public int X;
+	        public int Y;
+        }
     }
 }

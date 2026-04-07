@@ -42,5 +42,9 @@ namespace workspacer.Bar
         public void ResetPrimaryArea() { _inner.ResetPrimaryArea(); }
         public void IncrementNumInPrimary() { _inner.IncrementNumInPrimary(); }
         public void DecrementNumInPrimary() { _inner.DecrementNumInPrimary(); }
+        public ILayoutEngine GetLayoutEngine()
+        {
+            return _inner;
+        }
     }
 }

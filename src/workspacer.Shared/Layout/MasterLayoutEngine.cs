@@ -12,7 +12,6 @@ namespace workspacer;
 // ╚══════════════════════════════════════════════════════════════╝
 public class SlaveSlotWeights
 {
-    // ── minimum fraction any slot may occupy ─────────────────
     public const double MinWeight = 0.05;
 
     private List<double> _weights = new List<double>();
@@ -20,15 +19,8 @@ public class SlaveSlotWeights
     public int Count => _weights.Count;
     public IReadOnlyList<double> Weights => _weights;
 
-    // ─────────────────────────────────────────────────────────
-    //  Structural operations
-    // ─────────────────────────────────────────────────────────
+    // ── Structural operations ─────────────────────────────────
 
-    /// <summary>
-    /// Bring the slot list to exactly <paramref name="count"/> entries.
-    /// Added slots are given equal default weight; removed slots have their
-    /// weight redistributed proportionally among the survivors.
-    /// </summary>
     public void Resize(int count)
     {
         if (count <= 0) { _weights.Clear(); return; }
@@ -36,11 +28,6 @@ public class SlaveSlotWeights
         while (_weights.Count > count) RemoveSlot(_weights.Count - 1);
     }
 
-    /// <summary>
-    /// Append or insert a new slot at <paramref name="index"/>.
-    /// The new slot receives weight 1/newCount; all existing slots
-    /// are scaled down proportionally.
-    /// </summary>
     public void InsertSlot(int index)
     {
         int newCount = _weights.Count + 1;
@@ -51,10 +38,6 @@ public class SlaveSlotWeights
         Normalise();
     }
 
-    /// <summary>
-    /// Remove the slot at <paramref name="index"/> and redistribute
-    /// its weight proportionally among the remaining slots.
-    /// </summary>
     public void RemoveSlot(int index)
     {
         if (_weights.Count == 0) return;
@@ -65,31 +48,19 @@ public class SlaveSlotWeights
 
         double remaining = 1.0 - removed;
         if (remaining < 1e-9)
-        {
             for (int i = 0; i < _weights.Count; i++) _weights[i] = 1.0 / _weights.Count;
-        }
         else
-        {
             for (int i = 0; i < _weights.Count; i++) _weights[i] /= remaining;
-        }
         Normalise();
     }
 
-    // ─────────────────────────────────────────────────────────
-    //  Resize operations — called by keybinds
-    // ─────────────────────────────────────────────────────────
+    // ── Keybind-driven resize ─────────────────────────────────
 
-    /// <summary>
-    /// Make slot <paramref name="slotIndex"/> taller by <paramref name="delta"/>
-    /// (fraction of total height, e.g. 0.04).  The extra space is stolen
-    /// proportionally from all OTHER slots.
-    /// </summary>
     public void GrowSlot(int slotIndex, double delta)
     {
         if (slotIndex < 0 || slotIndex >= _weights.Count) return;
         if (_weights.Count < 2) return;
 
-        // How much can we actually steal? Each other slot must stay >= MinWeight.
         double maxSteal = 0;
         for (int i = 0; i < _weights.Count; i++)
             if (i != slotIndex) maxSteal += Math.Max(0, _weights[i] - MinWeight);
@@ -97,33 +68,24 @@ public class SlaveSlotWeights
         double actualDelta = Math.Min(delta, maxSteal);
         if (actualDelta <= 0) return;
 
-        // Grow the target slot
         _weights[slotIndex] = Math.Min(1.0 - (_weights.Count - 1) * MinWeight,
                                         _weights[slotIndex] + actualDelta);
 
-        // Steal proportionally from donors
         double totalDonorWeight = 0;
         for (int i = 0; i < _weights.Count; i++)
             if (i != slotIndex) totalDonorWeight += _weights[i];
 
-        double stolen = 0;
         for (int i = 0; i < _weights.Count; i++)
         {
             if (i == slotIndex) continue;
             double share = (totalDonorWeight > 1e-9) ? _weights[i] / totalDonorWeight : 1.0 / (_weights.Count - 1);
-            double take = actualDelta * share;
-            _weights[i] = Math.Max(MinWeight, _weights[i] - take);
-            stolen += take;
+            _weights[i] = Math.Max(MinWeight, _weights[i] - actualDelta * share);
         }
-
         Normalise();
     }
 
-    /// <summary>Shrink slot <paramref name="slotIndex"/>; inverse of GrowSlot.</summary>
     public void ShrinkSlot(int slotIndex, double delta)
     {
-        // Shrinking slot N = growing everyone else at N's expense.
-        // Simplest correct approach: grow all OTHER slots by proportional share of delta.
         if (slotIndex < 0 || slotIndex >= _weights.Count) return;
         if (_weights.Count < 2) return;
 
@@ -133,7 +95,6 @@ public class SlaveSlotWeights
 
         _weights[slotIndex] -= actualDelta;
 
-        // Distribute the gained weight proportionally among other slots
         double totalOther = 0;
         for (int i = 0; i < _weights.Count; i++)
             if (i != slotIndex) totalOther += _weights[i];
@@ -144,37 +105,84 @@ public class SlaveSlotWeights
             double share = (totalOther > 1e-9) ? _weights[i] / totalOther : 1.0 / (_weights.Count - 1);
             _weights[i] += actualDelta * share;
         }
-
         Normalise();
     }
 
-    // ─────────────────────────────────────────────────────────
-    //  Internal helpers
-    // ─────────────────────────────────────────────────────────
+    // ── Divider drag ──────────────────────────────────────────
 
-    // Correct floating-point drift so weights always sum exactly to 1.
+    /// <summary>
+    /// Move the divider between <paramref name="upperSlot"/> and the slot below
+    /// it.  <paramref name="deltaFraction"/> is signed: positive = divider moves
+    /// down (upper slot grows, lower shrinks).
+    /// </summary>
+    public void MoveDivider(int upperSlot, double deltaFraction)
+    {
+        int lowerSlot = upperSlot + 1;
+        if (upperSlot < 0 || lowerSlot >= _weights.Count) return;
+
+        double upper = _weights[upperSlot];
+        double lower = _weights[lowerSlot];
+
+        double clamped = Math.Max(-(upper - MinWeight), Math.Min(lower - MinWeight, deltaFraction));
+
+        _weights[upperSlot] = upper + clamped;
+        _weights[lowerSlot] = lower - clamped;
+        // Zero-sum exchange — no Normalise needed.
+    }
+
+    // ── Internal ──────────────────────────────────────────────
+
     private void Normalise()
     {
         if (_weights.Count == 0) return;
-        double sum = 0;
-        for (int i = 0; i < _weights.Count; i++) sum += _weights[i];
+        double sum = _weights.Sum();
         if (sum < 1e-9) { for (int i = 0; i < _weights.Count; i++) _weights[i] = 1.0 / _weights.Count; return; }
         for (int i = 0; i < _weights.Count; i++) _weights[i] /= sum;
     }
 }
+
 // ╔══════════════════════════════════════════════════════════════╗
-// ║                    FlexTallLayoutEngine                      ║
+// ║             WindowLocation extension helpers                 ║
 // ║                                                              ║
-// ║  Implements ILayoutEngine (verified against workspacer       ║
-// ║  source: PaneLayoutEngine.cs).  The interface requires       ║
-// ║  ONLY two members:                                           ║
-// ║    string Name { get; set; }                                 ║
-// ║    IEnumerable<IWindowLocation> CalcLayout(                  ║
-// ║        IEnumerable<IWindow>, int spaceWidth, int spaceHeight)║
-// ║  There are no AddWindow / RemoveWindow / FocusWindow on      ║
-// ║  ILayoutEngine — those belong to IWorkspace.  All state      ║
-// ║  reconciliation happens inside CalcLayout by diffing the     ║
-// ║  live window list against the previous snapshot.             ║
+// ║  Used by CalcLayout to detect which edges of a window have   ║
+// ║  moved relative to its last tiled position (TilePosition).   ║
+// ╚══════════════════════════════════════════════════════════════╝
+public static class WindowLocationExtensions
+{
+    public static int Right (this IWindowLocation l) => l.X + l.Width;
+    public static int Bottom(this IWindowLocation l) => l.Y + l.Height;
+
+    /// <summary>
+    /// How many pixels the right edge has shifted vs <paramref name="tiled"/>.
+    /// Positive = moved right.
+    /// </summary>
+    public static int RightEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Right() - tiled.Right();
+
+    /// <summary>
+    /// How many pixels the left edge has shifted vs <paramref name="tiled"/>.
+    /// Positive = moved right.
+    /// </summary>
+    public static int LeftEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.X - tiled.X;
+
+    /// <summary>
+    /// How many pixels the bottom edge has shifted vs <paramref name="tiled"/>.
+    /// Positive = moved down.
+    /// </summary>
+    public static int BottomEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Bottom() - tiled.Bottom();
+
+    /// <summary>
+    /// How many pixels the top edge has shifted vs <paramref name="tiled"/>.
+    /// Positive = moved down.
+    /// </summary>
+    public static int TopEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Y - tiled.Y;
+}
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                    MasterLayoutEngine                        ║
 // ║                                                              ║
 // ║  Layout (left → right):                                      ║
 // ║  ┌───────────────────┬──────────────┐                        ║
@@ -185,35 +193,46 @@ public class SlaveSlotWeights
 // ║  │                   │  slave[2]    │                        ║
 // ║  └───────────────────┴──────────────┘                        ║
 // ║  ←── MasterPercent ──→←─ remainder ──→                       ║
+// ║                                                              ║
+// ║  Corner-drag resize is detected entirely inside CalcLayout   ║
+// ║  by comparing each window's Location (where it is now,       ║
+// ║  i.e. after a potential corner drag) against its             ║
+// ║  TilePosition (where CalcLayout last placed it).             ║
+// ║                                                              ║
+// ║  Resizable edges                                             ║
+// ║  ────────────────                                            ║
+// ║  master RIGHT  edge → MasterPercent  (+ = wider master)      ║
+// ║  slave  LEFT   edge → MasterPercent  (+ = wider master)      ║
+// ║  slave  BOTTOM edge → divider(s, s+1) (+ = taller slave[s])  ║
+// ║  slave  TOP    edge → divider(s-1, s) (+ = taller slave[s-1])║
+// ║                                                              ║
+// ║  Screen edges (master left/top/bottom, slave right,          ║
+// ║  first slave top, last slave bottom) are never resizable.    ║
 // ╚══════════════════════════════════════════════════════════════╝
 public class MasterLayoutEngine : ILayoutEngine
 {
-    // ── tunables ─────────────────────────────────────────────
+    // ── Tunables ──────────────────────────────────────────────
 
     public string Name { get; set; } = "flex-tall";
 
     /// <summary>Fraction of screen width given to the master pane (0.1–0.9).</summary>
     public double MasterPercent { get; private set; }
 
-    /// <summary>How much MasterPercent shifts per expand/shrink call.</summary>
+    /// <summary>How much MasterPercent shifts per keybind expand/shrink call.</summary>
     public double MasterPercentIncrement { get; set; } = 0.1;
 
-    /// <summary>
-    /// How much a slave slot's weight changes per grow/shrink keybind press.
-    /// Expressed as a fraction of total height (e.g. 0.04 = 4 %).
-    /// </summary>
+    /// <summary>How much a slave slot's weight changes per keybind grow/shrink call.</summary>
     public double SlaveStep { get; set; } = 0.1;
 
-    // ── internal state ───────────────────────────────────────
+    // ── Internal state ────────────────────────────────────────
 
     private readonly SlaveSlotWeights _slaveWeights = new SlaveSlotWeights();
 
-    // Snapshot of window handles from the last CalcLayout call.
-    // Index 0 = master handle; indices 1..N = slave handles in slot order.
-    // Used to detect window insertions / removals between calls.
+    // Handle snapshot from the previous CalcLayout call.
+    // Index 0 = master; 1..N = slave slots in order.
     private List<IntPtr> _prevHandles = new List<IntPtr>();
 
-    // ── constructor ──────────────────────────────────────────
+    // ── Constructor ───────────────────────────────────────────
 
     public MasterLayoutEngine(double masterPercent = 0.55)
     {
@@ -221,7 +240,7 @@ public class MasterLayoutEngine : ILayoutEngine
     }
 
     // ══════════════════════════════════════════════════════════
-    //  ILayoutEngine — the one method workspacer calls
+    //  CalcLayout — the single ILayoutEngine method
     // ══════════════════════════════════════════════════════════
 
     public IEnumerable<IWindowLocation> CalcLayout(
@@ -232,7 +251,6 @@ public class MasterLayoutEngine : ILayoutEngine
         var winList = windows.ToList();
         int n = winList.Count;
 
-        // ── 0 windows ────────────────────────────────────────
         if (n == 0)
         {
             _slaveWeights.Resize(0);
@@ -240,36 +258,37 @@ public class MasterLayoutEngine : ILayoutEngine
             return Enumerable.Empty<IWindowLocation>();
         }
 
-        // ── 1 window: fills the whole screen ─────────────────
         if (n == 1)
         {
             _slaveWeights.Resize(0);
             _prevHandles = new List<IntPtr> { winList[0].Handle };
-            return new IWindowLocation[]
-            {
-                new WindowLocation(0, 0, spaceWidth, spaceHeight, WindowState.Normal)
-            };
+            return new[] { new WindowLocation(0, 0, spaceWidth, spaceHeight, WindowState.Normal) };
         }
 
-        // ── 2+ windows: master left, slaves stacked right ────
+        // ── 2+ windows ────────────────────────────────────────
+
         int slaveCount = n - 1;
         ReconcileSlots(winList, slaveCount);
 
+        // Detect corner-drag resizes BEFORE recomputing positions.
+        // If any window's current Location differs from its TilePosition on a
+        // resizable edge, fold that delta into MasterPercent / slave weights.
+        ApplyDragResizes(winList, spaceWidth, spaceHeight);
+
+        // ── Compute new tile positions ─────────────────────────
+
         var locations = new List<IWindowLocation>(n);
 
-        // Master occupies the full left column
         int masterW = (int)(spaceWidth * MasterPercent);
         locations.Add(new WindowLocation(0, 0, masterW, spaceHeight, WindowState.Normal));
 
-        // Slaves fill the right column weighted by _slaveWeights
         int slaveX = masterW;
         int slaveW = spaceWidth - masterW;
-        int y      = 0;
-
+        int y = 0;
         var weights = _slaveWeights.Weights;
+
         for (int s = 0; s < slaveCount; s++)
         {
-            // Give any leftover rounding pixels to the last slave
             int h = (s == slaveCount - 1)
                 ? spaceHeight - y
                 : (int)(spaceHeight * weights[s]);
@@ -279,13 +298,115 @@ public class MasterLayoutEngine : ILayoutEngine
             y += h;
         }
 
-        // Save handle snapshot for next call's reconciliation
         _prevHandles = winList.Select(w => w.Handle).ToList();
         return locations;
     }
 
     // ══════════════════════════════════════════════════════════
-    //  Public resize API — called directly from keybind lambdas
+    //  Drag-resize detection
+    // ══════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// For each window, compare Location (current OS position, reflecting any
+    /// corner drag the user just performed) with TilePosition (the position
+    /// CalcLayout assigned last frame).  Differences on resizable edges are
+    /// converted to fraction deltas and applied to MasterPercent or the
+    /// appropriate slave-slot divider.
+    ///
+    /// Why each edge maps the way it does:
+    ///
+    ///   Master RIGHT edge
+    ///     This is exactly the vertical column divider.  Moving it right by Δx
+    ///     pixels widens the master column by Δx/spaceWidth.
+    ///
+    ///   Slave LEFT edge
+    ///     Also the vertical column divider, seen from the slave side.  The
+    ///     slave column narrows when the divider moves right, but MasterPercent
+    ///     is measured from the left, so the sign is the same: +Δx → wider master.
+    ///
+    ///   Slave BOTTOM edge  (not the last slave)
+    ///     This is the horizontal divider between slave[s] and slave[s+1].
+    ///     Moving it down by Δy pixels makes slave[s] taller by Δy/spaceHeight.
+    ///     → MoveDivider(s, +fraction)
+    ///
+    ///   Slave TOP edge  (not the first slave)
+    ///     This is the horizontal divider between slave[s-1] and slave[s],
+    ///     seen from slave[s]'s perspective.  Moving this edge DOWN shrinks
+    ///     slave[s] from the top, which means the divider moved down and
+    ///     slave[s-1] grew.
+    ///     → MoveDivider(s-1, +fraction)
+    ///
+    ///   Screen-bound edges (master left/top/bottom, slave right, first slave
+    ///   top, last slave bottom) are ignored — they have nowhere to go.
+    ///
+    /// Corner drags naturally move two edges at once (e.g. bottom-right moves
+    /// the right edge and the bottom edge).  Each axis is independent, so both
+    /// get applied without conflict.
+    /// </summary>
+    private void ApplyDragResizes(List<IWindow> winList, int spaceWidth, int spaceHeight)
+    {
+        for (int i = 0; i < winList.Count; i++)
+        {
+            var win   = winList[i];
+            var tiled = win.TilePosition;
+            var loc   = win.Location;
+
+            // Skip if position data is unavailable or unchanged.
+            if (tiled == null || loc == null) continue;
+            if (loc.Width == tiled.Width && loc.Height == tiled.Height) continue;
+
+            bool isMaster = (i == 0);
+            int  slaveIdx = i - 1;   // 0-based; only meaningful when !isMaster
+
+            // ── Horizontal: vertical column divider ───────────
+
+            if (isMaster)
+            {
+                int dx = loc.RightEdgeDelta(tiled);
+                if (dx != 0)
+                {
+                    MasterPercent = Math.Max(0.1, Math.Min(0.9,
+                        (double)loc.Width / spaceWidth));
+                }
+            }
+            else
+            {
+                int dx = loc.LeftEdgeDelta(tiled);
+                if (dx != 0)
+                {
+                    MasterPercent = Math.Max(0.1, Math.Min(0.9,
+                        1 - (double)loc.Width / spaceWidth));
+                }
+            }
+
+            // ── Vertical: slave-to-slave dividers ─────────────
+            // Only slave windows participate; master spans full height.
+
+            if (!isMaster)
+            {
+                // Bottom edge: divider between this slave and the one below.
+                // Exists only for all slaves except the last.
+                if (slaveIdx < _slaveWeights.Count - 1)
+                {
+                    int dy = loc.BottomEdgeDelta(tiled);
+                    if (dy != 0)
+                        _slaveWeights.MoveDivider(slaveIdx, (double)dy / spaceHeight);
+                }
+
+                // Top edge: divider between the slave above and this one.
+                // Exists only for all slaves except the first.
+                if (slaveIdx > 0)
+                {
+                    int dy = loc.TopEdgeDelta(tiled);
+                    if (dy != 0)
+                        _slaveWeights.MoveDivider(slaveIdx - 1, (double)dy / spaceHeight);
+                }
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    //  Public keybind API
     // ══════════════════════════════════════════════════════════
 
     /// <summary>Widen the master column.</summary>
@@ -296,24 +417,21 @@ public class MasterLayoutEngine : ILayoutEngine
     public void ShrinkMaster() =>
         MasterPercent = Math.Max(0.1, MasterPercent - MasterPercentIncrement);
 
-    /// <summary>
-    /// Make the focused slave taller (steal space from the other slaves).
-    /// <paramref name="workspace"/> is used only to resolve which window is focused.
-    /// </summary>
+    /// <summary>Make the focused slave taller.</summary>
     public void GrowFocusedSlave(IWorkspace workspace)
     {
         int idx = GetFocusedSlaveIndex(workspace);
         if (idx >= 0) _slaveWeights.GrowSlot(idx, SlaveStep);
     }
 
-    /// <summary>Make the focused slave shorter (give space back to the others).</summary>
+    /// <summary>Make the focused slave shorter.</summary>
     public void ShrinkFocusedSlave(IWorkspace workspace)
     {
         int idx = GetFocusedSlaveIndex(workspace);
         if (idx >= 0) _slaveWeights.ShrinkSlot(idx, SlaveStep);
     }
 
-    /// <summary>Reset all slave heights to an equal split.</summary>
+    /// <summary>Reset all slave heights to equal shares.</summary>
     public void ResetSlaveHeights()
     {
         int count = _slaveWeights.Count;
@@ -325,68 +443,45 @@ public class MasterLayoutEngine : ILayoutEngine
     //  Private helpers
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Sync the slot weight table with the live slave count.
-    ///
-    /// Strategy: positional diff.  workspacer keeps windows in a stable
-    /// insertion-ordered list unless the user explicitly reorders them, so
-    /// simply adding or trimming trailing slots is correct for the common cases:
-    ///   • New window opens   → append a proportional slot at the end
-    ///   • Window closes      → drop the last slot (weight redistributed)
-    ///   • User swaps windows → same slot count, no structural change
-    /// </summary>
     private void ReconcileSlots(List<IWindow> winList, int slaveCount)
     {
         var currentSlaveHandles = winList.Skip(1).Select(w => w.Handle).ToList();
 
-        // Fast path: nothing changed
         if (_slaveWeights.Count == slaveCount && SlaveHandlesMatch(currentSlaveHandles))
             return;
 
-        // First time or cleared state
         if (_slaveWeights.Count == 0)
         {
             _slaveWeights.Resize(slaveCount);
             return;
         }
 
-        // Structural change: grow or shrink the slot table
-        while (_slaveWeights.Count < slaveCount)
-            _slaveWeights.InsertSlot(_slaveWeights.Count);
-
-        while (_slaveWeights.Count > slaveCount)
-            _slaveWeights.RemoveSlot(_slaveWeights.Count - 1);
+        while (_slaveWeights.Count < slaveCount) _slaveWeights.InsertSlot(_slaveWeights.Count);
+        while (_slaveWeights.Count > slaveCount) _slaveWeights.RemoveSlot(_slaveWeights.Count - 1);
     }
 
-    // Compare the slave portion of the current handle list to the previous snapshot.
     private bool SlaveHandlesMatch(List<IntPtr> current)
     {
         if (_prevHandles.Count == 0) return false;
-        // _prevHandles[0] is the master; [1..] are slaves
         if (_prevHandles.Count - 1 != current.Count) return false;
         for (int i = 0; i < current.Count; i++)
             if (_prevHandles[i + 1] != current[i]) return false;
         return true;
     }
 
-    /// <summary>
-    /// Return the 0-based slave slot index of the focused window,
-    /// or -1 if the master is focused or nothing is focused.
-    /// Uses workspace.ManagedWindows which is the same ordered list
-    /// that CalcLayout receives (index 0 = master).
-    /// </summary>
     private int GetFocusedSlaveIndex(IWorkspace workspace)
     {
         var focused = workspace.FocusedWindow;
         if (focused == null) return -1;
 
-        // ManagedWindows is verified present on IWorkspace via WorkspaceWidget.cs source
         var all = workspace.ManagedWindows.ToList();
         int pos = all.IndexOf(focused);
-        if (pos <= 0) return -1; // 0 = master, -1 = not found
+        if (pos <= 0) return -1;
 
-        return pos - 1; // slave index is one less than the list position
+        return pos - 1;
     }
+
+    public ILayoutEngine GetLayoutEngine() => this;
 
     public void ShrinkPrimaryArea() {}
     public void ExpandPrimaryArea() {}

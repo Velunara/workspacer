@@ -67,5 +67,10 @@ namespace workspacer.Gap
             _innerGap = 0;
             _outerGap = 0;
         }
+
+        public ILayoutEngine GetLayoutEngine()
+        {
+            return _inner;
+        }
     }
 }
