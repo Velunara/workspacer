@@ -152,32 +152,22 @@ public static class WindowLocationExtensions
     public static int Right (this IWindowLocation l) => l.X + l.Width;
     public static int Bottom(this IWindowLocation l) => l.Y + l.Height;
 
-    /// <summary>
-    /// How many pixels the right edge has shifted vs <paramref name="tiled"/>.
-    /// Positive = moved right.
-    /// </summary>
-    public static int RightEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Right() - tiled.Right();
+    public static int WidthDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Width - tiled.Width;
 
-    /// <summary>
-    /// How many pixels the left edge has shifted vs <paramref name="tiled"/>.
-    /// Positive = moved right.
-    /// </summary>
-    public static int LeftEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+    public static int HeightDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Height - tiled.Height;
+
+    public static int RightEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Right() - tiled.Right(); // still valid for master
+
+    public static int BottomEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+        => loc.Bottom() - tiled.Bottom(); // primary vertical resize signal
+
+    public static int LeftEdgeMove(this IWindowLocation loc, IWindowLocation tiled)
         => loc.X - tiled.X;
 
-    /// <summary>
-    /// How many pixels the bottom edge has shifted vs <paramref name="tiled"/>.
-    /// Positive = moved down.
-    /// </summary>
-    public static int BottomEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Bottom() - tiled.Bottom();
-
-    /// <summary>
-    /// How many pixels the top edge has shifted vs <paramref name="tiled"/>.
-    /// Positive = moved down.
-    /// </summary>
-    public static int TopEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
+    public static int TopEdgeMove(this IWindowLocation loc, IWindowLocation tiled)
         => loc.Y - tiled.Y;
 }
 
@@ -212,6 +202,7 @@ public static class WindowLocationExtensions
 public class MasterLayoutEngine : ILayoutEngine
 {
     // ── Tunables ──────────────────────────────────────────────
+    private Logger Logger = Logger.Create();
 
     public string Name { get; set; } = "flex-tall";
 
@@ -345,63 +336,106 @@ public class MasterLayoutEngine : ILayoutEngine
     /// </summary>
     private void ApplyDragResizes(List<IWindow> winList, int spaceWidth, int spaceHeight)
     {
+        Logger.Debug("---- ApplyDragResizes ----");
+
         for (int i = 0; i < winList.Count; i++)
         {
-            var win   = winList[i];
+            var win = winList[i];
             var tiled = win.TilePosition;
-            var loc   = win.Location;
+            var loc = win.Location;
 
-            // Skip if position data is unavailable or unchanged.
-            if (tiled == null || loc == null) continue;
-            if (loc.Width == tiled.Width && loc.Height == tiled.Height) continue;
+            if (tiled == null || loc == null)
+                continue;
+
+            if (loc.Width <= 0 || loc.Height <= 0)
+            {
+                Logger.Debug($"  SKIP invalid size: w={loc.Width}, h={loc.Height}");
+                continue;
+            }
 
             bool isMaster = (i == 0);
-            int  slaveIdx = i - 1;   // 0-based; only meaningful when !isMaster
+            int slaveIdx = i - 1;
 
-            // ── Horizontal: vertical column divider ───────────
+            int xDelta = loc.X - tiled.X;
+            int yDelta = loc.Y - tiled.Y;
+            int wDelta = loc.Width - tiled.Width;
+            int hDelta = loc.Height - tiled.Height;
+            int rightDelta = loc.Right() - tiled.Right();
+            int bottomDelta = loc.Bottom() - tiled.Bottom();
+
+            bool horizontalResize = wDelta != 0;
+            bool verticalResize = hDelta != 0;
+
+            Logger.Debug(
+                $"Win[{i}] " +
+                $"isMaster={isMaster} " +
+                $"xΔ={xDelta} yΔ={yDelta} wΔ={wDelta} hΔ={hDelta} " +
+                $"rightΔ={rightDelta} bottomΔ={bottomDelta}"
+            );
+
+            bool handledAnyResize = false;
 
             if (isMaster)
             {
-                int dx = loc.RightEdgeDelta(tiled);
-                if (dx != 0)
+                // Master: right edge resize only. Left edge stays anchored.
+                if (horizontalResize && xDelta == 0)
                 {
-                    MasterPercent = Math.Max(0.1, Math.Min(0.9,
-                        (double)loc.Width / spaceWidth));
+                    double newPercent = (double)loc.Width / spaceWidth;
+                    Logger.Debug($"  MASTER resize → width={loc.Width}, percent={newPercent:0.000}");
+                    MasterPercent = Math.Max(0.1, Math.Min(0.9, newPercent));
+                    Logger.Debug($"  MASTER clamped percent={MasterPercent:0.000}");
+                    handledAnyResize = true;
                 }
             }
             else
             {
-                int dx = loc.LeftEdgeDelta(tiled);
-                if (dx != 0)
+                // Slave: left edge resize only. Right edge stays anchored.
+                if (horizontalResize && rightDelta == 0)
                 {
-                    MasterPercent = Math.Max(0.1, Math.Min(0.9,
-                        1 - (double)loc.Width / spaceWidth));
+                    double newPercent = (double)loc.X / spaceWidth;
+                    Logger.Debug($"  SLAVE resize → x={loc.X}, percent={newPercent:0.000}");
+                    MasterPercent = Math.Max(0.1, Math.Min(0.9, newPercent));
+                    Logger.Debug($"  SLAVE clamped percent={MasterPercent:0.000}");
+                    handledAnyResize = true;
+                }
+
+                // Bottom edge resize.
+                if (verticalResize && slaveIdx < _slaveWeights.Count - 1 && yDelta == 0)
+                {
+                    double frac = (double)bottomDelta / spaceHeight;
+                    Logger.Debug(
+                        $"  DIVIDER[{slaveIdx}] BOTTOM move: " +
+                        $"dy={bottomDelta}, frac={frac:0.000}"
+                    );
+                    _slaveWeights.MoveDivider(slaveIdx, frac);
+                    Logger.Debug(
+                        $"  DIVIDER[{slaveIdx}] AFTER: " +
+                        $"{string.Join(", ", _slaveWeights.Weights.Select(w => w.ToString("0.000")))}"
+                    );
+                    handledAnyResize = true;
+                }
+                // Top edge resize.
+                else if (verticalResize && slaveIdx > 0 && bottomDelta == 0)
+                {
+                    int divider = slaveIdx - 1;
+                    double frac = (double)yDelta / spaceHeight;
+                    Logger.Debug(
+                        $"  DIVIDER[{divider}] TOP move: " +
+                        $"dy={yDelta}, frac={frac:0.000}"
+                    );
+                    _slaveWeights.MoveDivider(divider, frac);
+                    Logger.Debug(
+                        $"  DIVIDER[{divider}] AFTER: " +
+                        $"{string.Join(", ", _slaveWeights.Weights.Select(w => w.ToString("0.000")))}"
+                    );
+                    handledAnyResize = true;
                 }
             }
 
-            // ── Vertical: slave-to-slave dividers ─────────────
-            // Only slave windows participate; master spans full height.
-
-            if (!isMaster)
-            {
-                // Bottom edge: divider between this slave and the one below.
-                // Exists only for all slaves except the last.
-                if (slaveIdx < _slaveWeights.Count - 1)
-                {
-                    int dy = loc.BottomEdgeDelta(tiled);
-                    if (dy != 0)
-                        _slaveWeights.MoveDivider(slaveIdx, (double)dy / spaceHeight);
-                }
-
-                // Top edge: divider between the slave above and this one.
-                // Exists only for all slaves except the first.
-                if (slaveIdx > 0)
-                {
-                    int dy = loc.TopEdgeDelta(tiled);
-                    if (dy != 0)
-                        _slaveWeights.MoveDivider(slaveIdx - 1, (double)dy / spaceHeight);
-                }
-            }
+            // Important: stop after the first real resize source.
+            // Any later window deltas are usually the result of relayout, not user drag.
+            if (handledAnyResize)
+                break;
         }
     }
 
