@@ -20,6 +20,7 @@ namespace workspacer
             IgnoreWindowClass("TaskManagerWindow");
             IgnoreWindowClass("MSCTFIME UI");
             IgnoreWindowClass("SHELLDLL_DefView");
+            IgnoreWindowClass("Shell_SecondaryTrayWnd");
             IgnoreProcessName("SearchUI");
             IgnoreProcessName("ShellExperienceHost");
             IgnoreProcessName("LockApp");

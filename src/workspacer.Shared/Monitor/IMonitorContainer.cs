@@ -1,7 +1,13 @@
 ﻿namespace workspacer
 {
+    public delegate void MonitorAddedDelegate(IMonitor monitor);
+    public delegate void MonitorRemovedDelegate(IMonitor monitor);
+    
     public interface IMonitorContainer
     {
+        event MonitorAddedDelegate OnMonitorAdded;
+        event MonitorRemovedDelegate OnMonitorRemoved;
+        
         int NumMonitors { get; }
         IMonitor[] GetAllMonitors();
         IMonitor GetMonitorAtIndex(int index);

@@ -61,9 +61,9 @@ namespace workspacer
             Windows = new WindowsManager();
             Keybinds = new KeybindManager(this);
 
+            MonitorContainer = new NativeMonitorContainer();
             WorkspaceContainer = new WorkspaceContainer(this);
             WindowRouter = new WindowRouter(this);
-            MonitorContainer = new NativeMonitorContainer();
 
             Windows.WindowCreated += Workspaces.AddWindow;
             Windows.WindowDestroyed += Workspaces.RemoveWindow;
@@ -106,6 +106,8 @@ namespace workspacer
                 Logger.FileLogLevel = value;
             }
         }
+
+        public MonitorRemoveStrategy MonitorRemoveStrategy { get; set; } = MonitorRemoveStrategy.Spread;
 
         public Func<ILayoutEngine[]> DefaultLayouts
         {

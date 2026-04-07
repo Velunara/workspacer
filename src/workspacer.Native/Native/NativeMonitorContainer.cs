@@ -35,6 +35,8 @@ namespace workspacer
             FocusedMonitor = _monitors[0];
         }
 
+        public event MonitorAddedDelegate OnMonitorAdded;
+        public event MonitorRemovedDelegate OnMonitorRemoved;
         public int NumMonitors => _monitors.Length;
 
         public IMonitor FocusedMonitor { get; set; }

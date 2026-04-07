@@ -9,28 +9,73 @@
 
     public interface IWorkspaceManager
     {
-        IWorkspace FocusedWorkspace { get; }
+        // -------------------------
+        // Properties
+        // -------------------------
 
-        void SwitchToWindow(IWindow window);
-        void SwitchToWorkspace(int index);
+        IWorkspace FocusedWorkspace { get; }
+        IWorkspace GetWorkspaceForMonitor(IMonitor monitor);
+
+        // -------------------------
+        // Workspace Switching
+        // -------------------------
+
+        void SwitchToWorkspace(int index); // uses mouse monitor
+        void SwitchToWorkspace(IMonitor monitor, int index);
         void SwitchToWorkspace(IWorkspace workspace);
+
         void SwitchToLastFocusedWorkspace();
-        void SwitchMonitorToWorkspace(int monitorIndex, int workspaceIndex);
-        void SwitchToNextWorkspace();
+
+        void SwitchToNextWorkspace(); // mouse monitor
         void SwitchToPreviousWorkspace();
+
+        void SwitchToNextWorkspace(IMonitor monitor);
+        void SwitchToPreviousWorkspace(IMonitor monitor);
+
+        void SwitchMonitorToWorkspace(int monitorIndex, int workspaceIndex);
+
+        // -------------------------
+        // Monitor Focus
+        // -------------------------
+
         void SwitchFocusedMonitor(int index);
         void SwitchFocusToNextMonitor();
         void SwitchFocusToPreviousMonitor();
         void SwitchFocusedMonitorToMouseLocation();
-        void MoveFocusedWindowToWorkspace(int index);
-        void MoveFocusedWindowAndSwitchToNextWorkspace();
-        void MoveFocusedWindowAndSwitchToPreviousWorkspace();
+
+        // -------------------------
+        // Window Movement
+        // -------------------------
+
+        void MoveFocusedWindowToWorkspace(int index); // mouse monitor
+        void MoveFocusedWindowToWorkspace(IMonitor monitor, int index);
+
+        void MoveFocusedWindowToNextWorkspace();
+        void MoveFocusedWindowToPreviousWorkspace();
+
         void MoveFocusedWindowToMonitor(int index);
-        void MoveAllWindows(IWorkspace source, IWorkspace dest);
         void MoveFocusedWindowToNextMonitor();
         void MoveFocusedWindowToPreviousMonitor();
 
+        void MoveAllWindows(IWorkspace source, IWorkspace dest);
+
+        // -------------------------
+        // Window Lifecycle
+        // -------------------------
+
+        void AddWindow(IWindow window, bool firstCreate);
+        void RemoveWindow(IWindow window);
+        void UpdateWindow(IWindow window, WindowUpdateType type);
+
+        // -------------------------
+        // State / Updates
+        // -------------------------
+
         void ForceWorkspaceUpdate();
+
+        // -------------------------
+        // Events
+        // -------------------------
 
         event WorkspaceUpdatedDelegate WorkspaceUpdated;
         event WindowAddedDelegate WindowAdded;

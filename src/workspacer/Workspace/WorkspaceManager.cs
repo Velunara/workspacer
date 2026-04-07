@@ -42,6 +42,11 @@ namespace workspacer
             }
         }
 
+        public IWorkspace GetWorkspaceForMonitor(IMonitor monitor)
+        {
+            throw new System.NotImplementedException();
+        }
+
         public void SwitchToWorkspace(int index)
         {
             Logger.Debug("SwitchToWorkspace({0})", index);
@@ -50,29 +55,33 @@ namespace workspacer
             SwitchToWorkspace(targetWorkspace);
         }
 
+        public void SwitchToWorkspace(IMonitor monitor, int index)
+        {
+            throw new System.NotImplementedException();
+        }
+
         public void SwitchToWorkspace(IWorkspace targetWorkspace)
         {
             Logger.Debug("SwitchToWorkspace({0})", targetWorkspace);
-            if (targetWorkspace != null)
+
+            if (targetWorkspace == null)
+                return;
+
+            var monitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(targetWorkspace);
+            var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(monitor);
+
+            if (targetWorkspace != currentWorkspace)
             {
-                var focusedMonitor = _context.MonitorContainer.GetMouseMonitor();
-                var destMonitor = _context.WorkspaceContainer.GetDesiredMonitorForWorkspace(targetWorkspace) ?? focusedMonitor;
-                var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(destMonitor);
-                var sourceMonitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(targetWorkspace);
+                _lastWorkspace = currentWorkspace;
 
-                if (targetWorkspace != currentWorkspace)
-                {
-                    _lastWorkspace = currentWorkspace;
-                    _context.WorkspaceContainer.AssignWorkspaceToMonitor(currentWorkspace, sourceMonitor);
-                    _context.WorkspaceContainer.AssignWorkspaceToMonitor(targetWorkspace, destMonitor);
+                // just update active workspace for that monitor
+                _context.WorkspaceContainer.SetWorkspaceForMonitor(monitor, targetWorkspace);
 
-                    currentWorkspace.DoLayout();
-                    targetWorkspace.DoLayout();
+                currentWorkspace.DoLayout();
+                targetWorkspace.DoLayout();
 
-                    WorkspaceUpdated?.Invoke();
-
-                    targetWorkspace.FocusLastFocusedWindow();
-                }
+                WorkspaceUpdated?.Invoke();
+                targetWorkspace.FocusLastFocusedWindow();
             }
         }
 
@@ -84,26 +93,31 @@ namespace workspacer
             SwitchToWorkspace(targetWorkspace);
         }
 
+        public void SwitchToPreviousWorkspace(IMonitor monitor)
+        {
+            throw new System.NotImplementedException();
+        }
+
         public void SwitchMonitorToWorkspace(int monitorIndex, int workspaceIndex)
         {
-            Logger.Debug("SwitchMonitorToWorkspace(monitorIndex: {0}, workspaceIndex: {1})", monitorIndex, workspaceIndex);
             if (monitorIndex >= _context.MonitorContainer.NumMonitors)
                 return;
 
-            var destMonitor = _context.MonitorContainer.GetMonitorAtIndex(monitorIndex);
-            var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(destMonitor);
+            var monitor = _context.MonitorContainer.GetMonitorAtIndex(monitorIndex);
+            var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(monitor);
             var targetWorkspace = _context.WorkspaceContainer.GetWorkspaceAtIndex(currentWorkspace, workspaceIndex);
-            var sourceMonitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(targetWorkspace);
+
+            if (targetWorkspace == null)
+                return;
 
             _lastWorkspace = currentWorkspace;
-            _context.WorkspaceContainer.AssignWorkspaceToMonitor(currentWorkspace, sourceMonitor);
-            _context.WorkspaceContainer.AssignWorkspaceToMonitor(targetWorkspace, destMonitor);
+
+            _context.WorkspaceContainer.SetWorkspaceForMonitor(monitor, targetWorkspace);
 
             currentWorkspace.DoLayout();
             targetWorkspace.DoLayout();
 
             WorkspaceUpdated?.Invoke();
-
             targetWorkspace.FocusLastFocusedWindow();
         }
 
@@ -145,6 +159,11 @@ namespace workspacer
             WorkspaceUpdated?.Invoke();
 
             targetWorkspace.FocusLastFocusedWindow();
+        }
+
+        public void SwitchToNextWorkspace(IMonitor monitor)
+        {
+            throw new System.NotImplementedException();
         }
 
         public void SwitchFocusedMonitor(int index)
@@ -227,6 +246,22 @@ namespace workspacer
                 nextWindow?.Focus();
             }
         }
+
+        public void MoveFocusedWindowToWorkspace(IMonitor monitor, int index)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public void MoveFocusedWindowToNextWorkspace()
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public void MoveFocusedWindowToPreviousWorkspace()
+        {
+            throw new System.NotImplementedException();
+        }
+
         public void MoveFocusedWindowAndSwitchToNextWorkspace()
         {
             Logger.Debug("MoveFocusedWindowAndSwitchToNextWorkspace()");
@@ -425,7 +460,7 @@ namespace workspacer
                         {
                             // TODO: show flash for workspace (in bar?)
                             Logger.Trace("workspace.IsIndicating = true for workspace {0}", workspace);
-                            workspace.IsIndicating = true;
+                            // workspace.IsIndicating = true;
                             WorkspaceUpdated?.Invoke();
                         }
                     }
@@ -433,7 +468,18 @@ namespace workspacer
                     // Only change the current window if we are actively moving it.
                     if (type == WindowUpdateType.Move && window.IsMouseMoving)
                     {
-                        TrySwapWindowToMouse(window);
+                        if (window.MoveInitiated)
+                        {
+                            TrySwapWindowToMouse(window);
+                        }
+                        else
+                        {
+                            window.MoveInitiated = true;
+                        }
+                    }
+                    else
+                    {
+                        window.MoveInitiated = false;
                     }
                     _windowsToWorkspaces[window].UpdateWindow(window, type);
                     WindowUpdated?.Invoke(window, workspace);
@@ -464,10 +510,10 @@ namespace workspacer
                 currentWorkspace.SwapWindowToPoint(window, x, y);
             } else
             {
-                foreach (var workspace in _context.WorkspaceContainer.GetAllWorkspaces())
+                foreach (var monitor in _context.MonitorContainer.GetAllMonitors())
                 {
-                    var monitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(workspace);
-                    if (monitor != null && workspace.IsPointInside(x, y))
+                    var workspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(monitor);
+                    if (workspace.IsPointInside(x, y))
                     {
                         currentWorkspace.RemoveWindow(window, false);
                         workspace.AddWindow(window, false);
@@ -602,24 +648,22 @@ namespace workspacer
 
         public void Initialize(IEnumerable<IWindow> windows)
         {
-            var allWorkspaces = _context.WorkspaceContainer.GetAllWorkspaces().ToList();
             for (var i = 0; i < _context.MonitorContainer.NumMonitors; i++)
             {
                 var m = _context.MonitorContainer.GetMonitorAtIndex(i);
-                var w = allWorkspaces[i];
+                var w = _context.WorkspaceContainer.GetWorkspaces(m).First();
                 _context.WorkspaceContainer.AssignWorkspaceToMonitor(w, m);
             }
 
             foreach (var w in windows)
             {
-                var location = w.Location;
                 var locationWorkspace = GetWorkspaceForWindowLocation(w);
                 var destWorkspace = _context.WindowRouter.RouteWindow(w, locationWorkspace);
 
                 if (destWorkspace != null)
                 {
                     AddWindowToWorkspace(w, destWorkspace);
-                    AddWindow(w, false);
+                    // AddWindow(w, false);
                 }
             }
         }

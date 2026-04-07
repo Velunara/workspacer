@@ -30,6 +30,8 @@ namespace workspacer
         /// set of windows that are contained within the workspace and which workspacer can layout.
         /// </summary>
         IList<IWindow> ManagedWindows { get; }
+        
+        IMonitor Monitor { get; set; }
 
         /// <summary>
         /// currently focused window in the workspace, or null if there is no focused window in the workspace

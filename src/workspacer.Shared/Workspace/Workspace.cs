@@ -35,6 +35,9 @@ namespace workspacer
                 }
             }
         }
+
+        public IMonitor Monitor { get; set; }
+
         public IWindow FocusedWindow
         {
             get
@@ -381,7 +384,6 @@ namespace workspacer
 
         public void DoLayout()
         {
-            // Skip layout if the focussed window is fullscreen.
             if (FocusedWindow?.IsFullscreen ?? false)
             {
                 OnLayoutCompleted?.Invoke(this);
@@ -391,57 +393,50 @@ namespace workspacer
             var windows = ManagedWindows.ToList();
             if (_context.Enabled)
             {
-                var monitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(this);
-                if (monitor != null)
+                // Check if this workspace is the currently active one for its monitor
+                var isActive = Monitor != null && 
+                               _context.WorkspaceContainer.GetWorkspaceForMonitor(Monitor) == this;
+
+                if (isActive)
                 {
                     foreach (var window in Windows)
-                    {
                         window.ShowInCurrentState();
-                    }
 
-                    var locations = GetLayoutEngine().CalcLayout(windows, monitor.Width, monitor.Height)
+                    var locations = GetLayoutEngine().CalcLayout(windows, Monitor.Width, Monitor.Height)
                         .ToArray();
 
-                    using (var handle = _context.Windows.DeferWindowsPos(windows.Count))
+                    using var handle = _context.Windows.DeferWindowsPos(windows.Count);
+                    for (var i = 0; i < locations.Length; i++)
                     {
-                        for (var i = 0; i < locations.Length; i++)
+                        var window = windows[i];
+                        var loc = locations[i];
+                        var adjustedLoc = new WindowLocation(loc.X + Monitor.X, loc.Y + Monitor.Y,
+                            loc.Width, loc.Height, loc.State);
+
+                        if (!window.IsMouseMoving && !window.IsFullscreen && !_context.Windows.IsFloating(window))
                         {
-                            var window = windows[i];
-                            var loc = locations[i];
-
-                            var adjustedLoc = new WindowLocation(loc.X + monitor.X, loc.Y + monitor.Y,
-                                loc.Width, loc.Height, loc.State);
-
-                            if (!window.IsMouseMoving && !window.IsFullscreen && !_context.Windows.IsFloating(window))
+                            window.CodeMoved = true;
+                            handle.DeferWindowPos(window, adjustedLoc);
+                            var thread = new Thread(() =>
                             {
-                                window.CodeMoved = true;
-                                handle.DeferWindowPos(window, adjustedLoc);
-                                // Wait a little
-                                var thread = new Thread(() =>
-                                {
-                                    Thread.Sleep(100);
-                                    window.TilePosition = window.Location;
-                                });
-                                thread.Start();
-                            }
+                                Thread.Sleep(100);
+                                window.TilePosition = window.Location;
+                            });
+                            thread.Start();
                         }
                     }
                 }
                 else
                 {
                     foreach (var window in Windows)
-                    {
                         window.Hide();
-                    }
                 }
                 OnLayoutCompleted?.Invoke(this);
             }
             else
             {
                 foreach (var window in Windows)
-                {
                     window.ShowInCurrentState();
-                }
             }
         }
 

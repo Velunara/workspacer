@@ -15,7 +15,6 @@ namespace workspacer
 
         private IntPtr _handle;
         private bool _didManualHide;
-        public Win32.RECT LastRect { get; set; }
 
         public event IWindowDelegate WindowClosed;
         public event IWindowDelegate WindowUpdated;
@@ -24,6 +23,7 @@ namespace workspacer
         private int _processId;
         private string _processName;
         private string _processFileName;
+        private bool _moved = false;
 
         public WindowsWindow(IntPtr handle)
         {
@@ -153,6 +153,7 @@ namespace workspacer
         }
 
         public bool CodeMoved { get; set; }
+        public bool MoveInitiated { get; set; }
 
         public int ProcessId => _processId;
         public string ProcessFileName => _processFileName;

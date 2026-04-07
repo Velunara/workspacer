@@ -64,6 +64,8 @@ namespace workspacer
         /// </summary>
         /// <value>the desired file log level</value>
         LogLevel FileLogLevel { get; set; }
+        
+        MonitorRemoveStrategy MonitorRemoveStrategy { get; set; }
 
         /// <summary>
         /// toggles visibility of the debug output window

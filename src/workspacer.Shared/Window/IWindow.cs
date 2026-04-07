@@ -28,6 +28,7 @@ namespace workspacer
         IWindowLocation TilePosition { get; set; }
         Rectangle Offset { get; }
         bool CodeMoved { get; set; }
+        bool MoveInitiated { get; set; }
 
         int ProcessId { get; }
         string ProcessFileName { get; }
