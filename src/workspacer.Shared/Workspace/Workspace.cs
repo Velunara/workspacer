@@ -116,7 +116,7 @@ namespace workspacer
             if (type == WindowUpdateType.Foreground)
                 _lastFocused = window;
 
-            if (layout && type is not WindowUpdateType.Scale and not WindowUpdateType.Foreground)
+            if (layout && type is not WindowUpdateType.Scale)
                 DoLayout();
         }
 

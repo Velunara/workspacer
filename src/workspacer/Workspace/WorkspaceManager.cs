@@ -45,7 +45,7 @@ namespace workspacer
         public void SwitchToWorkspace(int index)
         {
             Logger.Debug("SwitchToWorkspace({0})", index);
-            var currentWorkspace = FocusedWorkspace;
+            var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(_context.MonitorContainer.GetMouseMonitor());
             var targetWorkspace = _context.WorkspaceContainer.GetWorkspaceAtIndex(currentWorkspace, index);
             SwitchToWorkspace(targetWorkspace);
         }
@@ -55,7 +55,7 @@ namespace workspacer
             Logger.Debug("SwitchToWorkspace({0})", targetWorkspace);
             if (targetWorkspace != null)
             {
-                var focusedMonitor = _context.MonitorContainer.FocusedMonitor;
+                var focusedMonitor = _context.MonitorContainer.GetMouseMonitor();
                 var destMonitor = _context.WorkspaceContainer.GetDesiredMonitorForWorkspace(targetWorkspace) ?? focusedMonitor;
                 var currentWorkspace = _context.WorkspaceContainer.GetWorkspaceForMonitor(destMonitor);
                 var sourceMonitor = _context.WorkspaceContainer.GetCurrentMonitorForWorkspace(targetWorkspace);

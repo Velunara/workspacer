@@ -81,5 +81,20 @@ namespace workspacer
 
             return _monitors[index];
         }
+
+        public IMonitor GetMouseMonitor()
+        {
+            // Get current mouse position
+            var cursorPos = Cursor.Position;
+
+            // Find the monitor that contains the mouse
+            var screen = Screen.FromPoint(cursorPos);
+
+            // Map back to our internal monitor array
+            var monitor = _monitors.FirstOrDefault(m => m.Screen.DeviceName == screen.DeviceName);
+
+            // Fallback to primary monitor
+            return monitor ?? _monitors[0];
+        }
     }
 }
