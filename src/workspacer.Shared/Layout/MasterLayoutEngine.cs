@@ -111,23 +111,84 @@ public class SlaveSlotWeights
     // ── Divider drag ──────────────────────────────────────────
 
     /// <summary>
-    /// Move the divider between <paramref name="upperSlot"/> and the slot below
-    /// it.  <paramref name="deltaFraction"/> is signed: positive = divider moves
-    /// down (upper slot grows, lower shrinks).
+    /// Move the divider between <paramref name="upperSlot"/> and the slot below it.
+    /// <paramref name="deltaFraction"/> is signed: positive = divider moves down
+    /// (upper side grows, lower side shrinks).
+    ///
+    /// <paramref name="slaveIdx"/> must equal either <paramref name="upperSlot"/> or
+    /// <c>upperSlot + 1</c> and controls which side is the "active" one:
+    ///
+    ///   slaveIdx == upperSlot  →  that single slot absorbs the full delta;
+    ///                             the entire lower group [lowerSlot..end] scales
+    ///                             proportionally; all other upper slots are fixed.
+    ///
+    ///   slaveIdx == lowerSlot  →  that single slot absorbs the full delta;
+    ///                             the entire upper group [0..upperSlot] scales
+    ///                             proportionally; all other lower slots are fixed.
     /// </summary>
-    public void MoveDivider(int upperSlot, double deltaFraction)
+    public void MoveDivider(int upperSlot, double deltaFraction, int slaveIdx)
     {
         int lowerSlot = upperSlot + 1;
         if (upperSlot < 0 || lowerSlot >= _weights.Count) return;
 
-        double upper = _weights[upperSlot];
-        double lower = _weights[lowerSlot];
+        bool slaveIsUpper = (slaveIdx == upperSlot);
 
-        double clamped = Math.Max(-(upper - MinWeight), Math.Min(lower - MinWeight, deltaFraction));
+        if (slaveIsUpper)
+        {
+            // ── Solo slot: _weights[upperSlot]  ───────────────────────────────
+            // ── Scaled group: [lowerSlot .. end]  ────────────────────────────
 
-        _weights[upperSlot] = upper + clamped;
-        _weights[lowerSlot] = lower - clamped;
-        // Zero-sum exchange — no Normalise needed.
+            double sumLower = 0;
+            int    lowerCount = _weights.Count - lowerSlot;
+            for (int i = lowerSlot; i < _weights.Count; i++) sumLower += _weights[i];
+
+            // Upper slot cannot drop below MinWeight.
+            // Lower group cannot lose so much that any slot drops below MinWeight
+            // (conservative bound: treat as if the group were uniform).
+            double minDelta = MinWeight - _weights[upperSlot];
+            double maxDelta = sumLower - lowerCount * MinWeight;
+            double clamped  = Math.Max(minDelta, Math.Min(maxDelta, deltaFraction));
+            if (Math.Abs(clamped) < 1e-12) return;
+
+            _weights[upperSlot] += clamped;
+
+            double newSumLower = sumLower - clamped;          // zero-sum: upper gains = lower loses
+            double scale       = sumLower > 1e-12
+                ? newSumLower / sumLower
+                : 1.0 / lowerCount;
+
+            for (int i = lowerSlot; i < _weights.Count; i++)
+                _weights[i] *= scale;
+        }
+        else // slaveIsLower
+        {
+            // ── Solo slot: _weights[lowerSlot]  ───────────────────────────────
+            // ── Scaled group: [0 .. upperSlot]  ──────────────────────────────
+
+            double sumUpper = 0;
+            int    upperCount = upperSlot + 1;
+            for (int i = 0; i <= upperSlot; i++) sumUpper += _weights[i];
+
+            // Lower slot cannot drop below MinWeight.
+            // Upper group cannot lose so much that any slot drops below MinWeight.
+            double maxDelta = _weights[lowerSlot] - MinWeight;
+            double minDelta = upperCount * MinWeight - sumUpper;
+            double clamped  = Math.Max(minDelta, Math.Min(maxDelta, deltaFraction));
+            if (Math.Abs(clamped) < 1e-12) return;
+
+            _weights[lowerSlot] -= clamped;                   // lower absorbs the mirror amount
+
+            double newSumUpper = sumUpper + clamped;
+            double scale       = sumUpper > 1e-12
+                ? newSumUpper / sumUpper
+                : 1.0 / upperCount;
+
+            for (int i = 0; i <= upperSlot; i++)
+                _weights[i] *= scale;
+        }
+
+        // Both branches are zero-sum by construction — global sum stays 1.0.
+        // No Normalise() call needed.
     }
 
     // ── Internal ──────────────────────────────────────────────
@@ -151,24 +212,6 @@ public static class WindowLocationExtensions
 {
     public static int Right (this IWindowLocation l) => l.X + l.Width;
     public static int Bottom(this IWindowLocation l) => l.Y + l.Height;
-
-    public static int WidthDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Width - tiled.Width;
-
-    public static int HeightDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Height - tiled.Height;
-
-    public static int RightEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Right() - tiled.Right(); // still valid for master
-
-    public static int BottomEdgeDelta(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Bottom() - tiled.Bottom(); // primary vertical resize signal
-
-    public static int LeftEdgeMove(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.X - tiled.X;
-
-    public static int TopEdgeMove(this IWindowLocation loc, IWindowLocation tiled)
-        => loc.Y - tiled.Y;
 }
 
 // ╔══════════════════════════════════════════════════════════════╗
@@ -407,7 +450,7 @@ public class MasterLayoutEngine : ILayoutEngine
                         $"  DIVIDER[{slaveIdx}] BOTTOM move: " +
                         $"dy={bottomDelta}, frac={frac:0.000}"
                     );
-                    _slaveWeights.MoveDivider(slaveIdx, frac);
+                    _slaveWeights.MoveDivider(slaveIdx, frac, slaveIdx);
                     Logger.Debug(
                         $"  DIVIDER[{slaveIdx}] AFTER: " +
                         $"{string.Join(", ", _slaveWeights.Weights.Select(w => w.ToString("0.000")))}"
@@ -423,7 +466,7 @@ public class MasterLayoutEngine : ILayoutEngine
                         $"  DIVIDER[{divider}] TOP move: " +
                         $"dy={yDelta}, frac={frac:0.000}"
                     );
-                    _slaveWeights.MoveDivider(divider, frac);
+                    _slaveWeights.MoveDivider(divider, frac, slaveIdx);
                     Logger.Debug(
                         $"  DIVIDER[{divider}] AFTER: " +
                         $"{string.Join(", ", _slaveWeights.Weights.Select(w => w.ToString("0.000")))}"
