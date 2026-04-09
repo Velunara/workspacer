@@ -8,6 +8,7 @@
         int Height { get; }
 
         WindowState State { get; }
+        LocationLockAxis LockedAxis { get; }
 
         bool IsPointInside(int x, int y);
     }

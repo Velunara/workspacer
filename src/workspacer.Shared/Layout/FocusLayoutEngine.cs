@@ -66,19 +66,19 @@ namespace workspacer
             {
                 if (i < numInPrimary)
                 {
-                    list.Add(new WindowLocation(secondaryWidth, i * primaryHeight, primaryWidth, primaryHeight, WindowState.Normal));
+                    list.Add(new WindowLocation(secondaryWidth, i * primaryHeight, primaryWidth, primaryHeight, WindowState.Normal, LocationLockAxis.All));
                 }
                 else
                 {
                     if (i < nbLeftWindows + numInPrimary)
                     {
                         // left side
-                        list.Add(new WindowLocation(0, (i - numInPrimary) * leftHeight, secondaryWidth, leftHeight, WindowState.Normal));
+                        list.Add(new WindowLocation(0, (i - numInPrimary) * leftHeight, secondaryWidth, leftHeight, WindowState.Normal, LocationLockAxis.All));
                     }
                     else
                     {
                         // right side
-                        list.Add(new WindowLocation(secondaryWidth + primaryWidth, (i - numInPrimary - nbLeftWindows) * rightHeight, secondaryWidth, rightHeight, WindowState.Normal));
+                        list.Add(new WindowLocation(secondaryWidth + primaryWidth, (i - numInPrimary - nbLeftWindows) * rightHeight, secondaryWidth, rightHeight, WindowState.Normal, LocationLockAxis.All));
                     }
                 }
             }

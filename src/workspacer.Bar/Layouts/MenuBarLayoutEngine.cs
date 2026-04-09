@@ -28,12 +28,12 @@ namespace workspacer.Bar
             if (_config.BarIsTop)
             {
                 return _inner.CalcLayout(windows, spaceWidth, spaceHeight - areaOffset)
-                .Select(l => new WindowLocation(l.X, l.Y + areaOffset, l.Width, l.Height, l.State));
+                .Select(l => new WindowLocation(l.X, l.Y + areaOffset, l.Width, l.Height, l.State, l.LockedAxis));
             }
             else
             {
                 return _inner.CalcLayout(windows, spaceWidth, spaceHeight - areaOffset)
-                .Select(l => new WindowLocation(l.X, l.Y, l.Width, l.Height , l.State));
+                .Select(l => new WindowLocation(l.X, l.Y, l.Width, l.Height , l.State, l.LockedAxis));
             }
         }
 

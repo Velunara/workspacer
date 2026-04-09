@@ -97,7 +97,9 @@ namespace workspacer
                     state = WindowState.Maximized;
                 }
 
-                return new WindowLocation(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, state);
+                var axisLock = LocationLockAxis.None;
+                if (_tilePosition != null) axisLock = _tilePosition.LockedAxis;
+                return new WindowLocation(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, state, axisLock);
             }
         }
 

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using System.Windows.Input;
 
 namespace workspacer
 {
@@ -38,6 +39,7 @@ namespace workspacer
         private PipeServer _pipeServer;
         private Func<ILayoutEngine[]> _defaultLayouts;
         private List<Func<ILayoutEngine, ILayoutEngine>> _layoutProxies;
+        private AltDrag _altDrag;
 
         public ConfigContext()
         {
@@ -200,6 +202,7 @@ namespace workspacer
 
         public void CleanupAndExit()
         {
+            _altDrag?.Dispose();
             SystemTray.Dispose();
             Application.Exit();
         }
@@ -271,6 +274,11 @@ namespace workspacer
             {
                 return null;
             }
+        }
+
+        public void UseAltDrag(KeyModifiers modifiers = KeyModifiers.Alt)
+        {
+            _altDrag = new AltDrag(this, modifiers);
         }
 
         private WorkspacerState GetState()

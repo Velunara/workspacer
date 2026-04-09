@@ -111,6 +111,13 @@ namespace workspacer
             }
         }
 
+        public IWindow FromHWND(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero)
+                return null;
+            return _windows[hwnd];
+        }
+
         public IWindowsDeferPosHandle DeferWindowsPos(int count)
         {
             var info = Win32.BeginDeferWindowPos(count);
@@ -165,6 +172,9 @@ namespace workspacer
                 else
                 {
                     _floating[window] = true;
+                    var l = window.Location;
+                    window.TilePosition =
+                        new WindowLocation(l.X, l.Y, l.Width, l.Height, l.State);
                     // HandleWindowRemove(window);
                     window.BringToTop();
                 }
@@ -280,7 +290,7 @@ namespace workspacer
             }
         }
 
-        private void UpdateWindow(IntPtr handle, WindowUpdateType type)
+        public void UpdateWindow(IntPtr handle, WindowUpdateType type)
         {
             if (type == WindowUpdateType.Show  && _windows.ContainsKey(handle))
             {
@@ -309,7 +319,7 @@ namespace workspacer
             }
         }
 
-        private void StartWindowMove(IntPtr handle)
+        public void StartWindowMove(IntPtr handle)
         {
             if (_windows.ContainsKey(handle))
             {
@@ -321,7 +331,7 @@ namespace workspacer
             }
         }
 
-        private void EndWindowMove(IntPtr handle)
+        public void EndWindowMove(IntPtr handle)
         {
             if (_windows.ContainsKey(handle))
             {
@@ -333,7 +343,7 @@ namespace workspacer
             }
         }
 
-        private void WindowMove(IntPtr handle)
+        public void WindowMove(IntPtr handle)
         {
             if (_windows.ContainsKey(handle) && _windows[handle].CanLayout)
             {

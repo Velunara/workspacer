@@ -1,4 +1,6 @@
-﻿namespace workspacer
+﻿using System;
+
+namespace workspacer
 {
     public delegate void WindowFocusDelegate(IWindow window);
 
@@ -14,5 +16,6 @@
         void ToggleFocusedWindowTiling(); // mod-t
         int CurrentMonitorID();
         bool IsFloating(IWindow window);
+        IWindow FromHWND(IntPtr hwnd);
     }
 }

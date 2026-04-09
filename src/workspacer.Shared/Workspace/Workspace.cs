@@ -411,7 +411,7 @@ namespace workspacer
                         var window = windows[i];
                         var loc = locations[i];
                         var adjustedLoc = new WindowLocation(loc.X + Monitor.X, loc.Y + Monitor.Y,
-                            loc.Width, loc.Height, loc.State);
+                            loc.Width, loc.Height, loc.State, loc.LockedAxis);
 
                         if (!window.IsMouseMoving && !window.IsFullscreen && !_context.Windows.IsFloating(window))
                         {
@@ -420,7 +420,8 @@ namespace workspacer
                             var thread = new Thread(() =>
                             {
                                 Thread.Sleep(100);
-                                window.TilePosition = window.Location;
+                                var l = window.Location;
+                                window.TilePosition = new WindowLocation(l.X, l.Y, l.Width, l.Height, l.State, loc.LockedAxis);
                             });
                             thread.Start();
                         }

@@ -21,6 +21,8 @@ namespace workspacer
             IgnoreWindowClass("MSCTFIME UI");
             IgnoreWindowClass("SHELLDLL_DefView");
             IgnoreWindowClass("Shell_SecondaryTrayWnd");
+            IgnoreWindowClass("Default IME");
+            IgnoreWindowClass("IME");
             IgnoreProcessName("SearchUI");
             IgnoreProcessName("ShellExperienceHost");
             IgnoreProcessName("LockApp");

@@ -296,7 +296,7 @@ public class MasterLayoutEngine : ILayoutEngine
         {
             _slaveWeights.Resize(0);
             _prevHandles = new List<IntPtr> { winList[0].Handle };
-            return new[] { new WindowLocation(0, 0, spaceWidth, spaceHeight, WindowState.Normal) };
+            return new[] { new WindowLocation(0, 0, spaceWidth, spaceHeight, WindowState.Normal, LocationLockAxis.All) };
         }
 
         // ── 2+ windows ────────────────────────────────────────
@@ -314,7 +314,7 @@ public class MasterLayoutEngine : ILayoutEngine
         var locations = new List<IWindowLocation>(n);
 
         int masterW = (int)(spaceWidth * MasterPercent);
-        locations.Add(new WindowLocation(0, 0, masterW, spaceHeight, WindowState.Normal));
+        locations.Add(new WindowLocation(0, 0, masterW, spaceHeight, WindowState.Normal, LocationLockAxis.AllExceptRight));
 
         int slaveX = masterW;
         int slaveW = spaceWidth - masterW;
@@ -328,7 +328,18 @@ public class MasterLayoutEngine : ILayoutEngine
                 : (int)(spaceHeight * weights[s]);
 
             h = Math.Max(1, h);
-            locations.Add(new WindowLocation(slaveX, y, slaveW, h, WindowState.Normal));
+            LocationLockAxis locationLock = LocationLockAxis.Right;
+            if (s == 0)
+            {
+                locationLock |= LocationLockAxis.Top;
+            }
+            
+            if (s == slaveCount - 1)
+            {
+                locationLock |= LocationLockAxis.Bottom;
+            }
+            
+            locations.Add(new WindowLocation(slaveX, y, slaveW, h, WindowState.Normal, locationLock));
             y += h;
         }
 
@@ -435,7 +446,7 @@ public class MasterLayoutEngine : ILayoutEngine
                 // Slave: left edge resize only. Right edge stays anchored.
                 if (horizontalResize && rightDelta == 0)
                 {
-                    double newPercent = (double)loc.X / spaceWidth;
+                    double newPercent = 1 - (double)loc.Width / spaceWidth;
                     Logger.Debug($"  SLAVE resize → x={loc.X}, percent={newPercent:0.000}");
                     MasterPercent = Math.Max(0.1, Math.Min(0.9, newPercent));
                     Logger.Debug($"  SLAVE clamped percent={MasterPercent:0.000}");

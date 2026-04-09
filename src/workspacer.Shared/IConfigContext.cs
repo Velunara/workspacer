@@ -92,6 +92,8 @@ namespace workspacer
         /// restart workspacer
         /// </summary>
         void Restart();
+
+        void UseAltDrag(KeyModifiers modifiers = KeyModifiers.Alt);
     }
 
     public enum WindowOrder

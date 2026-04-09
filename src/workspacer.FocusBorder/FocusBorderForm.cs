@@ -26,7 +26,7 @@ namespace workspacer.FocusBorder
                 window.Location.Y - window.Offset.Y,
                 window.Location.Width - window.Offset.Width,
                 window.Location.Height - window.Offset.Height,
-                window.Location.State);
+                window.Location.State, window.TilePosition.LockedAxis);
             
             if (location.X != this.Location.X || location.Y != this.Location.Y || location.Width != this.Width ||
                 location.Height != this.Height)
