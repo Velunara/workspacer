@@ -120,7 +120,15 @@ namespace workspacer
                 _lastFocused = window;
 
             if (layout && type is not WindowUpdateType.Scale)
+            {
                 DoLayout();
+
+                if (type is WindowUpdateType.MoveEnd or WindowUpdateType.ScaleEnd)
+                {
+                    Thread.Sleep(100);
+                    DoLayout();
+                }
+            }
         }
 
         public void CloseFocusedWindow()
