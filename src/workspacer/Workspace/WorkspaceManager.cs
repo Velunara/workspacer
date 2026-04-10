@@ -446,10 +446,11 @@ namespace workspacer
             }
         }
 
+        private int _moves = 0;
         public void UpdateWindow(IWindow window, WindowUpdateType type)
         {
             if (type is WindowUpdateType.Move && (window.Location.Width != window.TilePosition.Width ||
-                                                  window.Location.Height != window.TilePosition.Height))
+                                                  window.Location.Height != window.TilePosition.Height) && _moves < 2)
             {
                 type = WindowUpdateType.Scale;
             }
@@ -485,6 +486,7 @@ namespace workspacer
                     // Only change the current window if we are actively moving it.
                     if (type == WindowUpdateType.Move && window.IsMouseMoving)
                     {
+                        _moves += 1;
                         if (window.MoveInitiated)
                         {
                             TrySwapWindowToMouse(window);
@@ -497,6 +499,7 @@ namespace workspacer
                     else
                     {
                         window.MoveInitiated = false;
+                        _moves = 0;
                     }
                     _windowsToWorkspaces[window].UpdateWindow(window, type);
                     WindowUpdated?.Invoke(window, workspace);
