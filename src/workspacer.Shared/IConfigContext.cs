@@ -26,6 +26,7 @@ namespace workspacer
         WindowOrder NewWindowOrder { get; set; }
 
         string ConfigDirectory { get; }
+        bool Initializing { get; }
 
         /// <summary>
         /// the default layout Func is used to generate layouts for workspaces that do not

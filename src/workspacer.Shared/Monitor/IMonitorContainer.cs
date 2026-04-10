@@ -17,5 +17,6 @@
         IMonitor GetPreviousMonitor();
         IMonitor GetNextMonitor();
         IMonitor GetMouseMonitor();
+        IMonitor MonitorForWindow(IWindow window);
     }
 }

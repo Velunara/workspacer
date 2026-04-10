@@ -33,5 +33,8 @@ namespace workspacer
         IWorkspace GetWorkspaceOnMonitor(IMonitor monitor);
 
         IWorkspace this[string name] { get; }
+        
+        WorkspaceState GetState();
+        void InitializeWithState(WorkspaceState state, IEnumerable<IWindow> allWindows);
     }
 }

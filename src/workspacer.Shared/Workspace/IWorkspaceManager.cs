@@ -58,7 +58,7 @@
         void MoveFocusedWindowToPreviousMonitor();
 
         void MoveAllWindows(IWorkspace source, IWorkspace dest);
-
+        
         // -------------------------
         // Window Lifecycle
         // -------------------------
@@ -83,5 +83,8 @@
         event WindowRemovedDelegate WindowRemoved;
         event WindowMovedDelegate WindowMoved;
         event FocusedMonitorUpdatedDelegate FocusedMonitorUpdated;
+        void RegisterWindow(IWorkspace workspace, IWindow window);
+        void WorkspacesUpdated();
+        IWorkspace GetWorkspaceForWindowLocation(IWindow window);
     }
 }

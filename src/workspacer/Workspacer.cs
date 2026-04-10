@@ -2,6 +2,8 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Application = System.Windows.Forms.Application;
 
@@ -53,8 +55,10 @@ namespace workspacer
             ConfigHelper.DoConfig(_context);
 
             // init windows
-            _context.Windows.Initialize();
-
+            var state = _context.LoadState();
+            
+            _context.Windows.Initialize(state?.WindowState);
+            
             // verify config
             var allWorkspaces = _context.WorkspaceContainer.GetAllWorkspaces().ToList();
             // check to make sure there are enough workspaces for the monitors
@@ -64,10 +68,10 @@ namespace workspacer
             }
 
             // init workspaces
-            var state = _context.LoadState();
             if (state != null)
             {
                 _context.Workspaces.InitializeWithState(state.WorkspaceState, _context.Windows.Windows);
+                
                 Enabled = true;
             }
             else

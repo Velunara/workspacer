@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -97,6 +98,19 @@ namespace workspacer
 
             // Fallback to primary monitor
             return monitor ?? _monitors[0];
+        }
+
+        public IMonitor MonitorForWindow(IWindow window)
+        {
+            IntPtr handle = Win32Helper.GetMonitorFromWindow(window.Handle);
+            var screen = Screen.FromHandle(handle);
+            foreach (var monitor in _monitors)
+            {
+                if (monitor.Screen.Equals(screen))
+                    return monitor;
+            }
+
+            return null;
         }
     }
 }

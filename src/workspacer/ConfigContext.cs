@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Input;
 
@@ -34,15 +36,19 @@ namespace workspacer
         public WindowOrder NewWindowOrder { get; set; } = WindowOrder.NewWindowsLast;
 
         public string ConfigDirectory => FileHelper.GetConfigDirectory();
+        public bool Initializing { get; private set; } = true;
+        private bool _exiting;
 
         private System.Timers.Timer _timer;
         private PipeServer _pipeServer;
         private Func<ILayoutEngine[]> _defaultLayouts;
         private List<Func<ILayoutEngine, ILayoutEngine>> _layoutProxies;
         private AltDrag _altDrag;
+        private CancellationTokenSource _ctsSave = new CancellationTokenSource();
 
         public ConfigContext()
         {
+            _exiting = false;
             _timer = new System.Timers.Timer();
             _timer.Elapsed += (s, e) => UpdateActiveHandles();
             _timer.Interval = 5000;
@@ -78,6 +84,31 @@ namespace workspacer
 
             // ignore SunAwtWindows (common in some Sun AWT programs such at JetBrains products), prevents flickering
             WindowRouter.AddFilter((window) => !window.Class.Contains("SunAwtWindow"));
+
+            var initThread = new Thread(() =>
+            {
+                while (DateTime.Now - Workspaces.LastWindowAddedTime > TimeSpan.FromSeconds(1))
+                {
+                    Thread.Sleep(100);
+                }
+                
+                Initializing = false;
+            });
+            initThread.Start();
+            
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                CleanupAndExit();
+            };
+
+            Task.Run(async () =>
+            {
+                while (!_ctsSave.Token.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1), _ctsSave.Token);
+                    SaveState();
+                }
+            });
         }
 
         public void ConnectToWatcher()
@@ -166,6 +197,7 @@ namespace workspacer
 
         public void Restart()
         {
+            _ctsSave.Cancel();
             SaveState();
             var response = new LauncherResponse()
             {
@@ -202,6 +234,13 @@ namespace workspacer
 
         public void CleanupAndExit()
         {
+            _exiting = true;
+            foreach (var window in Windows.Windows)
+            {
+                Win32.ShowWindow(window.Handle, Win32.SW.SW_SHOW);
+            }
+            SaveState();
+            
             _altDrag?.Dispose();
             SystemTray.Dispose();
             Application.Exit();
@@ -253,15 +292,36 @@ namespace workspacer
 
         private void SaveState()
         {
-            var filePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "workspacer.State.json");
-            var json = JsonConvert.SerializeObject(GetState());
+            if (Initializing)
+                return;
+
+            var filePath = Path.Combine(Path.GetTempPath(), "workspacer.State.json");
+
+            var state = GetState();
+
+            // Optional: guard against empty state too
+            if (IsEmptyState(state))
+                return;
+
+            var json = JsonConvert.SerializeObject(state);
+            //Logger.Create().Debug(json);
 
             File.WriteAllText(filePath, json);
         }
+        
+        private bool IsEmptyState(WorkspacerState state)
+        {
+            var ws = state?.WorkspaceState?.MonitorWorkspaceWindows;
 
+            if (ws == null)
+                return true;
+
+            return ws.All(m => m.All(w => w.Count == 0));
+        }
+        
         public WorkspacerState LoadState()
         {
-            var filePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "workspacer.State.json");
+            var filePath = Path.Combine(Path.GetTempPath(), "workspacer.State.json");
 
             if (File.Exists(filePath))
             {
@@ -285,7 +345,8 @@ namespace workspacer
         {
             var state = new WorkspacerState()
             {
-                WorkspaceState = Workspaces.GetState()
+                WorkspaceState = Workspaces.GetState(),
+                WindowState = Windows.GetState()
             };
             return state;
         }

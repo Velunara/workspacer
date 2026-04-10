@@ -63,7 +63,7 @@ namespace workspacer
             _hookDelegate = new WinEventDelegate(WindowHook);
         }
 
-        public void Initialize()
+        public void Initialize(WindowsState state = null)
         {
             Win32.SetWinEventHook(Win32.EVENT_CONSTANTS.EVENT_OBJECT_DESTROY, Win32.EVENT_CONSTANTS.EVENT_OBJECT_SHOW, IntPtr.Zero, _hookDelegate, 0, 0, 0);
             Win32.SetWinEventHook(Win32.EVENT_CONSTANTS.EVENT_OBJECT_CLOAKED, Win32.EVENT_CONSTANTS.EVENT_OBJECT_UNCLOAKED, IntPtr.Zero, _hookDelegate, 0, 0, 0);
@@ -76,10 +76,25 @@ namespace workspacer
 
             Win32.EnumWindows((handle, param) =>
             {
-                if (Win32Helper.IsAppWindow(handle))
+                var shouldBeManaged = state == null
+                    ? Win32Helper.IsAppWindow(handle)
+                    : Win32Helper.IsAppWindow(handle) || state.ManagedWindows.Contains(handle);
+                
+                if (shouldBeManaged)
                 {
                     RegisterWindow(handle, false);
+                    
+                    var buf = new StringBuilder(255);
+                    Win32.GetWindowText(handle, buf, buf.Capacity);
+                    var title = buf.ToString();
+                    Win32.GetClassName(handle, buf, buf.Capacity + 1);
+                    var clas = buf.ToString();
+                    if (!String.IsNullOrEmpty(title))
+                    {
+                        Logger.Debug($"Window: {handle}({clas}:{title}) (cloaked:{Win32Helper.IsCloaked(handle)}, visible:{Win32.IsWindowVisible(handle)}, iconic:{Win32.IsIconic(handle)})");
+                    }
                 }
+
                 return true;
             }, IntPtr.Zero);
 
@@ -90,6 +105,21 @@ namespace workspacer
             });
             thread.Name = "WindowsManager";
             thread.Start();
+        }
+
+        public WindowsState GetState()
+        {
+            List<IntPtr> managedWindows =  new List<IntPtr>();
+            foreach (var window in Windows)
+            {
+                var handle = window.Handle;
+                managedWindows.Add(handle);
+            }
+
+            return new WindowsState()
+            {
+                ManagedWindows = managedWindows
+            };
         }
 
         public int CurrentMonitorID()

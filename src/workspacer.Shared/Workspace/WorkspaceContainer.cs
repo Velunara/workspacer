@@ -18,6 +18,7 @@ namespace workspacer
     
     public class WorkspaceContainer : IWorkspaceContainer
     {
+        private static Logger _logger = Logger.Create();
         private IConfigContext _context;
         private Dictionary<IMonitor, List<IWorkspace>> _workspaces;
         private Dictionary<IWorkspace, int> _workspaceMap;
@@ -233,7 +234,10 @@ namespace workspacer
 
         public IWorkspace GetWorkspaceAtIndex(IWorkspace currentWorkspace, int index)
         {
-            VerifyExists(currentWorkspace);
+            if (!VerifyExists(currentWorkspace))
+            {
+                return null;
+            }
             if (index >= _workspaces[currentWorkspace.Monitor].Count)
                 return null;
 
@@ -242,9 +246,7 @@ namespace workspacer
 
         public int GetWorkspaceIndex(IWorkspace workspace)
         {
-            VerifyExists(workspace);
-
-            return _workspaceMap[workspace];
+            return !VerifyExists(workspace) ? 0 : _workspaceMap[workspace];
         }
 
         public IMonitor GetCurrentMonitorForWorkspace(IWorkspace workspace)
@@ -263,6 +265,10 @@ namespace workspacer
 
         public IWorkspace GetWorkspaceForMonitor(IMonitor monitor)
         {
+            if (monitor == null || !_mtw.ContainsKey(monitor))
+            {
+                return null;
+            }
             return _mtw[monitor];
         }
 
@@ -289,10 +295,134 @@ namespace workspacer
             }
         }
 
-        private void VerifyExists(IWorkspace workspace)
+        private bool VerifyExists(IWorkspace workspace)
         {
+            if (workspace == null)
+                return false;
+
             if (!_workspaceMap.ContainsKey(workspace))
-                throw new Exception("attempted to access container using a workspace that isn't contained in it");
+                return false;
+
+            return true;
+        }
+        public WorkspaceState GetState()
+        {
+            var monitorWorkspaceWindows = new List<List<List<nint>>>();
+            var activeWorkspacePerMonitor = new List<int>();
+            nint focusedWindow = 0;
+
+            for (var i = 0; i < _context.MonitorContainer.NumMonitors; i++)
+            {
+                var monitor = _context.MonitorContainer.GetMonitorAtIndex(i);
+                var workspacesForMonitor = _workspaces[monitor];
+                var activeWorkspace = _mtw.ContainsKey(monitor) ? _mtw[monitor] : null;
+
+                var workspaceWindowsList = new List<List<nint>>();
+                for (var j = 0; j < workspacesForMonitor.Count; j++)
+                {
+                    var workspace = workspacesForMonitor[j];
+                    var windowHandles = new List<nint>();
+                    foreach (var window in workspace.Windows)
+                    {
+                        windowHandles.Add(window.Handle);
+                        if (window.IsFocused)
+                            focusedWindow = window.Handle;
+                    }
+                    workspaceWindowsList.Add(windowHandles);
+                }
+
+                monitorWorkspaceWindows.Add(workspaceWindowsList);
+                activeWorkspacePerMonitor.Add(
+                    activeWorkspace != null ? _workspaceMap[activeWorkspace] : 0);
+            }
+
+            return new WorkspaceState
+            {
+                MonitorWorkspaceWindows = monitorWorkspaceWindows,
+                ActiveWorkspacePerMonitor = activeWorkspacePerMonitor,
+                FocusedMonitor = _context.MonitorContainer.FocusedMonitor.Index,
+                FocusedWindow = focusedWindow
+            };
+        }
+
+        public void InitializeWithState(WorkspaceState state, IEnumerable<IWindow> allWindows)
+        {
+            var windows = allWindows.ToList();
+            _logger.Debug("Windows: " + windows.Count + " Monitors: " + _context.MonitorContainer.NumMonitors);
+
+            _context.MonitorContainer.FocusedMonitor =
+                _context.MonitorContainer.GetMonitorAtIndex(state.FocusedMonitor);
+
+            var monitorCount = Math.Min(_context.MonitorContainer.NumMonitors, state.MonitorWorkspaceWindows?.Count ?? 0);
+            var usedHandles = new List<nint>();
+
+            for (var i = 0; i < monitorCount; i++)
+            {
+                var monitor = _context.MonitorContainer.GetMonitorAtIndex(i);
+                var workspacesForMonitor = _workspaces[monitor];
+                var savedWorkspaceWindows = state.MonitorWorkspaceWindows[i];
+                _logger.Debug("Workspaces Count: " + workspacesForMonitor.Count);
+                var workspaceCount = Math.Min(workspacesForMonitor.Count, savedWorkspaceWindows.Count);
+
+                for (var j = 0; j < workspaceCount; j++)
+                {
+                    var workspace = workspacesForMonitor[j];
+                    foreach (var handle in savedWorkspaceWindows[j])
+                    {
+                        var window = windows.FirstOrDefault(w => w.Handle == handle);
+                        if (window == null)
+                            continue;
+                        
+                        _logger.Debug("Window " + window.Title + " matched");
+
+                        var routedWorkspace = _context.WindowRouter.RouteWindow(window, workspace);
+                        if (routedWorkspace == null)
+                            continue;
+                        
+                        _logger.Debug("Window " + window.Title + " matched with route");
+
+                        routedWorkspace.AddWindow(window);
+                        _context.Workspaces.RegisterWindow(routedWorkspace, window);
+                        usedHandles.Add(handle);
+
+                        if (state.FocusedWindow == handle)
+                            window.Focus();
+                    }
+                }
+
+                // Restore active workspace for this monitor
+                if (state.ActiveWorkspacePerMonitor != null && i < state.ActiveWorkspacePerMonitor.Count)
+                {
+                    var activeIdx = state.ActiveWorkspacePerMonitor[i];
+                    if (activeIdx >= 0 && activeIdx < workspacesForMonitor.Count)
+                        AssignWorkspaceToMonitor(workspacesForMonitor[activeIdx], monitor);
+                }
+            }
+            
+            foreach (var window in windows)
+            {
+                if (usedHandles.Contains(window.Handle))
+                    continue;
+
+                var defaultWorkspace = _context.Workspaces.GetWorkspaceForWindowLocation(window);
+                
+                var routedWorkspace = _context.WindowRouter.RouteWindow(window, defaultWorkspace);
+                if (routedWorkspace == null)
+                    continue;
+                
+                routedWorkspace.AddWindow(window);
+                _context.Workspaces.RegisterWindow(routedWorkspace, window);
+            }
+            
+            foreach (var workspaces in _workspaces.Values)
+            {
+                foreach (var workspace in workspaces)
+                {
+                    workspace.DoLayout();
+                }
+            }
+            
+            _context.Workspaces.WorkspacesUpdated();
         }
     }
 }

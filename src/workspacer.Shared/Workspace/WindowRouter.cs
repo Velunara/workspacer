@@ -18,6 +18,10 @@ namespace workspacer
             _routes = new List<Func<IWindow, IWorkspace>>();
 
             IgnoreWindowClass("TaskManagerWindow");
+            IgnoreWindowClass("WindowsForms10.Static.app.0.25468f2_r3_ad1");
+            IgnoreWindowClass("WindowsForms10.Window.8.app.0.25468f2_r3_ad1");
+            IgnoreWindowClass("Windows.UI.Core.CoreWindow");
+            IgnoreWindowClass("PowerToys.PowerLauncher");
             IgnoreWindowClass("MSCTFIME UI");
             IgnoreWindowClass("SHELLDLL_DefView");
             IgnoreWindowClass("Shell_SecondaryTrayWnd");
@@ -36,6 +40,9 @@ namespace workspacer
             IgnoreWindowClass("Shell_TrayWnd"); // Windows 11 start
             IgnoreProcessName("ScreenClippingHost");
             IgnoreWindowClass("WorkerW"); //Windows desktop
+            IgnoreWindowClass("SysShadow"); //Windows desktop
+            IgnoreWindowClass("Ghost");
+            IgnoreWindowClass("NotifyIconOverflowWindow");
 
             _filters.Add((window) => !(window.ProcessId == Process.GetCurrentProcess().Id));
         }
@@ -54,7 +61,9 @@ namespace workspacer
                 if (workspace != null)
                     return workspace;
             }
-            return defaultWorkspace ?? _context.Workspaces.FocusedWorkspace;
+            
+            var mouseMonitor = _context.MonitorContainer.GetMouseMonitor();
+            return defaultWorkspace ?? _context.Workspaces.GetWorkspaceForMonitor(mouseMonitor);
         }
 
         public void ClearFilters()
