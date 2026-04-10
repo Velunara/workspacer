@@ -5,13 +5,6 @@
   <p>
     <i>a tiling window manager for Windows 10+</i>
   <p>
-  <br>
-  <a href="https://github.com/workspacer/workspacer/actions/workflows/stable.yml" target="_blank">
-    <img alt="Stable action status" src="https://img.shields.io/github/workflow/status/workspacer/workspacer/stable?label=stable&logo=github">
-  </a>
-  <a href="https://github.com/workspacer/workspacer/actions/workflows/unstable.yml" target="_blank">
-    <img alt="Unstable action status" src="https://img.shields.io/github/workflow/status/workspacer/workspacer/unstable?label=unstable&logo=github">
-  </a>
 </div>
 
 ---
