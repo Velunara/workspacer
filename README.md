@@ -16,31 +16,11 @@
 
 ---
 
-__workspacer__ is a tiling window manager for Windows 10+, similar in style and function to common unix tiling window managers (dwm, i3, xmonad).
+__workspacer__ is a tiling window manager for Windows 10+, this fork replicats the functionality of window managers like AwesomeWM and Hyprland+Hyprsplit. Improves mouse interactability, adds support for AltDrag and improves workspacers ability to remember where windows were before it was killed. And well probably more that I've just forgotten.
 
 # Installation
 
-## Winget
-
-```console
-winget install --id=rickbutton.workspacer  -e
-```
-
-## Chocolatey
-
-```console
-choco install workspacer
-```
-
-## Scoop
-
-```console
-scoop bucket add extras
-scoop install workspacer
-```
-
-This is enough to get started - to see more info, check out the
-[quick start guide][quickstart-page]!
+This fork currently has to be built from source.
 
 # Customization
 
@@ -60,6 +40,7 @@ Action<IConfigContext> doConfig = (context) =>
 
     context.WorkspaceContainer.CreateWorkspaces("1", "2", "3", "4", "5");
     context.CanMinimizeWindows = true; // false by default
+    context.UseAltDrag(KeyModifiers.Alt); // Enable alt drag to move and resize windows.
 };
 return doConfig;
 ```
