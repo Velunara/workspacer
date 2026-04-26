@@ -9,7 +9,7 @@
 
 ---
 
-__workspacer__ is a tiling window manager for Windows 10+, this fork replicats the functionality of window managers like AwesomeWM and Hyprland+Hyprsplit. Improves mouse interactability, adds support for AltDrag and improves workspacers ability to remember where windows were before it was killed. And well probably more that I've just forgotten.
+__workspacer__ is a tiling window manager for Windows 10+, this fork replicates the functionality of window managers like AwesomeWM and Hyprland+Hyprsplit. Improves mouse interactability, adds support for AltDrag and improves workspacers ability to remember where windows were before it was killed. And well probably more that I've just forgotten.
 
 # Installation
 
